@@ -127,7 +127,7 @@ const VersapayPaymentMethod: FunctionComponent<
         }
 
         const data = await response.json();
-        return data.sessionId;
+        return data.sessionKey;
     }, [method.id, method.gateway]);
 
     // Initialize Versapay iframe
