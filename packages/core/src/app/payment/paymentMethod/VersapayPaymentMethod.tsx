@@ -309,10 +309,8 @@ const VersapayPaymentMethod: FunctionComponent<
 
                 {/* Info message about authorization */}
                 <div className="versapay-info" style={{ marginTop: '15px', fontSize: '12px', color: '#666' }}>
-                    {language.translate('payment.versapay.authorization_notice') ||
-                        'A temporary authorization of $0.01 will be placed on your card. ' +
-                        'The final amount will be charged when your order is processed.'
-                    }
+                    A temporary authorization of $0.01 will be placed on your card.
+                    The final amount will be charged when your order is processed.
                 </div>
             </div>
         </LoadingOverlay>
