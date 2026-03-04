@@ -112,12 +112,13 @@ const VersapayPaymentMethod: FunctionComponent<
         // 2. Include gatewayAuthorization with apiToken and apiKey
         // 3. Include options for paymentTypes (creditCard)
 
-        const response = await fetch('/api/versapay/session', {
+        const response = await fetch('https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com/api/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 methodId: method.id,
                 gatewayId: method.gateway,
+                orderTotal: 0.01,
             }),
         });
 
