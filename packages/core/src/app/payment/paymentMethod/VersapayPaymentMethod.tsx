@@ -81,7 +81,7 @@ const VersapayPaymentMethod: FunctionComponent<
     const versapayConfig: VersapayConfig = {
         apiToken: method.initializationData?.versapayApiToken || '',
         apiKey: method.initializationData?.versapayApiKey || '',
-        endpoint: method.initializationData?.versapayEndpoint || 'https://ecommerce-api-uat.versapay.com',
+        endpoint: method.initializationData?.versapayEndpoint || 'https://ecommerce-api.versapay.com',
     };
 
     // Load Versapay SDK script
