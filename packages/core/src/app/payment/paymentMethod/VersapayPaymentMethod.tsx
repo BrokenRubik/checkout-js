@@ -116,9 +116,9 @@ const VersapayPaymentMethod: FunctionComponent<
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                methodId: method.id,
-                gatewayId: method.gateway,
-                orderTotal: 0.01,
+                // methodId: method.id,
+                // gatewayId: method.gateway,
+                orderTotal: VERSAPAY_AUTHORIZATION_AMOUNT,
             }),
         });
 
