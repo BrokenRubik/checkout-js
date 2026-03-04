@@ -67,7 +67,6 @@ const VersapayPaymentMethod: FunctionComponent<
     onUnhandledError = noop,
     setSubmitted,
     paymentForm,
-    language,
 }) => {
     const [isInitializing, setIsInitializing] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
