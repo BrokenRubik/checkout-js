@@ -257,11 +257,12 @@ const VersapayPaymentMethod: FunctionComponent<
                 payments,
                 lines,                          // dynamic cart lines
                 currency: cart.currency.code,
-                amounts: {
-                    shipping: 0,
-                    discount: 0,
-                    tax: 0,
-                },
+                orderNumber: cart.id,
+                // amounts: {
+                //     shipping: 0,
+                //     discount: 0,
+                //     tax: 0,
+                // },
             }),
         });
 
@@ -324,10 +325,25 @@ const VersapayPaymentMethod: FunctionComponent<
                 },
             });
 
-            // Navigate to order confirmation
+            // Update BC order: set status to Awaiting Fulfillment + save Versapay token
             const order = state.data.getOrder();
 
             if (order) {
+                try {
+                    await fetch(`${baseVersapayURL}/api/update-order`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: order.orderId,
+                            versapayToken: result.token,
+                        }),
+                    });
+                    console.log('Order updated: status → Awaiting Fulfillment, token saved');
+                } catch (updateError) {
+                    // Non-fatal: log the error but don't block the customer from seeing confirmation
+                    console.error('Failed to update order post-payment:', updateError);
+                }
+
                 navigateToOrderConfirmation(order.orderId);
             }
         } catch (error) {
