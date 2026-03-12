@@ -65,7 +65,6 @@ interface VersapayWindow extends Window {
 // ---------------------------------------------------------------------------
 
 interface CartLineItem {
-    productId: number;
     sku: string;
     name: string;
     quantity: number;
@@ -186,9 +185,8 @@ const VersapayPaymentMethod: FunctionComponent<
 
         return allItems.map(item => ({
             type: 'Item',
-            number: String(item.productId),
+            number: item.sku,
             description: item.name,
-            sku: item.sku,
             price: item.originalPrice,
             quantity: item.quantity,
         }));
@@ -220,13 +218,10 @@ const VersapayPaymentMethod: FunctionComponent<
     // -----------------------------------------------------------------------
     // Create Versapay session (calls our backend /api/session)
     // -----------------------------------------------------------------------
-    const createVersapaySession = useCallback(async (cartAmount: number): Promise<string> => {
+    const createVersapaySession = useCallback(async (): Promise<string> => {
         const response = await fetch(`${baseVersapayURL}/api/session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                orderTotal: String(cartAmount.toFixed(2)),
-            }),
         });
 
         if (!response.ok) {
@@ -481,7 +476,7 @@ const VersapayPaymentMethod: FunctionComponent<
                 cartRef.current = cart;
 
                 // Create session using cart total
-                const newSessionId = await createVersapaySession(cart.cartAmount);
+                const newSessionId = await createVersapaySession();
 
                 if (cancelled) return;
 
