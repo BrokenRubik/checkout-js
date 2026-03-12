@@ -80,12 +80,6 @@ export interface VersapayPaymentMethodProps {
     onUnhandledError?(error: Error): void;
 }
 
-// Customer IDs allowed to use Versapay at checkout
-const ALLOWED_CUSTOMER_IDS: number[] = [
-    // Add allowed customer IDs here, e.g.: 123, 456
-    1
-];
-
 const VersapayPaymentMethod: FunctionComponent<
     VersapayPaymentMethodProps &
     WithCheckoutProps &
@@ -481,14 +475,9 @@ const VersapayPaymentMethod: FunctionComponent<
     );
 };
 
-export default withCheckout(({ checkoutService, checkoutState }) => {
-    const customer = checkoutState.data.getCustomer();
-
-    if (!customer || !ALLOWED_CUSTOMER_IDS.includes(customer.id)) {
-        return null;
-    }
-
-    return { checkoutService, checkoutState };
-})(
+export default withCheckout(({ checkoutService, checkoutState }) => ({
+    checkoutService,
+    checkoutState,
+}))(
     withPayment(withForm(connectFormik(withLanguage(VersapayPaymentMethod))))
 );
