@@ -1,4 +1,4 @@
-import { type PaymentMethod } from '@bigcommerce/checkout-sdk';
+import { type Cart, type PaymentMethod } from '@bigcommerce/checkout-sdk';
 import { noop } from 'lodash';
 import React, { FunctionComponent, useCallback, useEffect, useRef, useState } from 'react';
 
@@ -61,28 +61,6 @@ interface VersapayWindow extends Window {
 }
 
 // ---------------------------------------------------------------------------
-// BigCommerce Storefront Cart types (minimal)
-// ---------------------------------------------------------------------------
-
-interface CartLineItem {
-    sku: string;
-    name: string;
-    quantity: number;
-    originalPrice: number;
-}
-
-interface StorefrontCart {
-    id: string;
-    cartAmount: number;
-    currency: { code: string };
-    lineItems: {
-        physicalItems: CartLineItem[];
-        digitalItems: CartLineItem[];
-        customItems: CartLineItem[];
-    };
-}
-
-// ---------------------------------------------------------------------------
 // Payment payload types
 // ---------------------------------------------------------------------------
 
@@ -102,13 +80,11 @@ export interface VersapayPaymentMethodProps {
     onUnhandledError?(error: Error): void;
 }
 
-interface VersapayConfig {
-    apiToken: string;
-    apiKey: string;
-    endpoint: string;
-}
-
-const VERSAPAY_AUTHORIZATION_AMOUNT = 0.01;
+// Customer IDs allowed to use Versapay at checkout
+const ALLOWED_CUSTOMER_IDS: number[] = [
+    // Add allowed customer IDs here, e.g.: 123, 456
+    1
+];
 
 const VersapayPaymentMethod: FunctionComponent<
     VersapayPaymentMethodProps &
@@ -119,6 +95,7 @@ const VersapayPaymentMethod: FunctionComponent<
     WithLanguageProps
 > = ({
     checkoutService,
+    checkoutState,
     method,
     onUnhandledError = noop,
     setSubmitted,
@@ -127,7 +104,6 @@ const VersapayPaymentMethod: FunctionComponent<
     const [isInitializing, setIsInitializing] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
-    const [versapayError, setVersapayError] = useState<string | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const clientRef = useRef<VersapayClient | null>(null);
@@ -135,14 +111,6 @@ const VersapayPaymentMethod: FunctionComponent<
     const approvalFirstRunRef = useRef<boolean>(true);
     // Holds sessionId in a ref so async callbacks always read the latest value
     const sessionIdRef = useRef<string | null>(null);
-    // Holds fetched cart data
-    const cartRef = useRef<StorefrontCart | null>(null);
-
-    const versapayConfig: VersapayConfig = {
-        apiToken: method.initializationData?.versapayApiToken || '',
-        apiKey: method.initializationData?.versapayApiKey || '',
-        endpoint: method.initializationData?.versapayEndpoint || 'https://ecommerce-api.versapay.com',
-    };
 
     const baseVersapayURL = 'https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
@@ -152,42 +120,20 @@ const VersapayPaymentMethod: FunctionComponent<
     }, [sessionId]);
 
     // -----------------------------------------------------------------------
-    // Fetch cart from BigCommerce Storefront API
-    // -----------------------------------------------------------------------
-    const fetchCart = useCallback(async (): Promise<StorefrontCart> => {
-        const response = await fetch('/api/storefront/carts', {
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch cart');
-        }
-
-        const carts: StorefrontCart[] = await response.json();
-
-        if (!carts || carts.length === 0) {
-            throw new Error('No active cart found');
-        }
-
-        return carts[0];
-    }, []);
-
-    // -----------------------------------------------------------------------
     // Build the "lines" array for the backend in the same format as app.js
     // -----------------------------------------------------------------------
-    const buildCartLines = useCallback((cart: StorefrontCart) => {
-        const allItems: CartLineItem[] = [
-            ...cart.lineItems.physicalItems,
-            ...cart.lineItems.digitalItems,
-            ...cart.lineItems.customItems,
+    const buildCartLines = useCallback((cartData: Cart) => {
+        const allItems = [
+            ...cartData.lineItems.physicalItems,
+            ...cartData.lineItems.digitalItems,
+            ...(cartData.lineItems.customItems ?? []),
         ];
 
         return allItems.map(item => ({
             type: 'Item',
             number: item.sku,
             description: item.name,
-            price: item.originalPrice,
+            price: item.listPrice,
             quantity: item.quantity,
         }));
     }, []);
@@ -203,7 +149,7 @@ const VersapayPaymentMethod: FunctionComponent<
             }
 
             // Derive the SDK URL from the configured endpoint (strip /api/v2 if present)
-            const sdkBase = versapayConfig.endpoint.replace(/\/api\/v2\/?$/, '');
+            const sdkBase = 'https://ecommerce-api.versapay.com';
             const sdkUrl = `${sdkBase}/client.js`;
 
             const script = document.createElement('script');
@@ -213,7 +159,7 @@ const VersapayPaymentMethod: FunctionComponent<
             script.onerror = () => reject(new Error(`Failed to load Versapay SDK from ${sdkUrl}`));
             document.body.appendChild(script);
         });
-    }, [versapayConfig.endpoint]);
+    }, []);
 
     // -----------------------------------------------------------------------
     // Create Versapay session (calls our backend /api/session)
@@ -240,14 +186,8 @@ const VersapayPaymentMethod: FunctionComponent<
     // -----------------------------------------------------------------------
     // Send payments array to backend (mirrors processPaymentOnBackend in client.js)
     // -----------------------------------------------------------------------
-    const processPaymentOnBackend = useCallback(async (payments: VersapayPayment[]) => {
-        const cart = cartRef.current;
-
-        if (!cart) {
-            throw new Error('Cart data not available');
-        }
-
-        const lines = buildCartLines(cart);
+    const processPaymentOnBackend = useCallback(async (payments: VersapayPayment[], cartData: Cart) => {
+        const lines = buildCartLines(cartData);
 
         const response = await fetch(`${baseVersapayURL}/api/process-payment`, {
             method: 'POST',
@@ -256,13 +196,8 @@ const VersapayPaymentMethod: FunctionComponent<
                 sessionKey: sessionIdRef.current,
                 payments,
                 lines,                          // dynamic cart lines
-                currency: cart.currency.code,
-                orderNumber: cart.id,
-                // amounts: {
-                //     shipping: 0,
-                //     discount: 0,
-                //     tax: 0,
-                // },
+                currency: cartData.currency.code,
+                orderNumber: cartData.id,
             }),
         });
 
@@ -280,7 +215,6 @@ const VersapayPaymentMethod: FunctionComponent<
     // -----------------------------------------------------------------------
     const handleApproval = useCallback(async (result: VersapayApprovalResult) => {
         approvalFirstRunRef.current = false;
-        setVersapayError(null);
         setIsProcessing(true);
         setSubmitted(true);
 
@@ -307,8 +241,14 @@ const VersapayPaymentMethod: FunctionComponent<
             console.log('Versapay payment approved by iframe:', result);
             console.log('Sending payments to backend:', payments);
 
+            const currentCart = checkoutState.data.getCart();
+
+            if (!currentCart) {
+                throw new Error('Cart data not available');
+            }
+
             // Process sale on our backend
-            const backendResult = await processPaymentOnBackend(payments);
+            const backendResult = await processPaymentOnBackend(payments, currentCart);
             console.log('Backend payment result:', backendResult);
 
             // Submit order to BigCommerce using the primary token as nonce
@@ -348,8 +288,6 @@ const VersapayPaymentMethod: FunctionComponent<
             }
         } catch (error) {
             console.error('Payment processing error:', error);
-            const message = (error as Error).message || 'Payment processing failed';
-            setVersapayError(message);
             onUnhandledError(error as Error);
             // Allow retry
             approvalFirstRunRef.current = true;
@@ -429,7 +367,6 @@ const VersapayPaymentMethod: FunctionComponent<
             (error: VersapayError) => {
                 const message = error.message || JSON.stringify(error);
                 console.error('Versapay partial payment error:', message);
-                setVersapayError('Payment error: ' + message);
             }
         );
 
@@ -442,7 +379,6 @@ const VersapayPaymentMethod: FunctionComponent<
                 approvalFirstRunRef.current = true;
                 const message = error.message || JSON.stringify(error);
                 console.error('Versapay approval error:', message);
-                setVersapayError('Approval error: ' + message);
                 onUnhandledError(new Error(message));
             }
         );
@@ -475,7 +411,7 @@ const VersapayPaymentMethod: FunctionComponent<
     }, []);
 
     // -----------------------------------------------------------------------
-    // Initialization effect: fetch cart → create session → init iframe
+    // Initialization effect: create session → init iframe
     // -----------------------------------------------------------------------
     useEffect(() => {
         let cancelled = false;
@@ -484,14 +420,7 @@ const VersapayPaymentMethod: FunctionComponent<
             try {
                 setIsInitializing(true);
 
-                // Fetch cart data first so we have line items ready
-                const cart = await fetchCart();
-
-                if (cancelled) return;
-
-                cartRef.current = cart;
-
-                // Create session using cart total
+                // Create Versapay session
                 const newSessionId = await createVersapaySession();
 
                 if (cancelled) return;
@@ -547,30 +476,19 @@ const VersapayPaymentMethod: FunctionComponent<
                         width: '100%',
                     }}
                 />
-
-                {/* Error display */}
-                {versapayError && (
-                    <div
-                        className="versapay-error"
-                        style={{ color: 'red', marginTop: '10px', fontSize: '13px' }}
-                    >
-                        {versapayError}
-                    </div>
-                )}
-
-                {/* Authorization notice */}
-                <div
-                    className="versapay-info"
-                    style={{ marginTop: '15px', fontSize: '12px', color: '#666' }}
-                >
-                    A temporary authorization of ${VERSAPAY_AUTHORIZATION_AMOUNT.toFixed(2)} will be placed on your card.
-                    The final amount will be charged when your order is processed.
-                </div>
             </div>
         </LoadingOverlay>
     );
 };
 
-export default withCheckout(props => props)(
+export default withCheckout(({ checkoutService, checkoutState }) => {
+    const customer = checkoutState.data.getCustomer();
+
+    if (!customer || !ALLOWED_CUSTOMER_IDS.includes(customer.id)) {
+        return null;
+    }
+
+    return { checkoutService, checkoutState };
+})(
     withPayment(withForm(connectFormik(withLanguage(VersapayPaymentMethod))))
 );
