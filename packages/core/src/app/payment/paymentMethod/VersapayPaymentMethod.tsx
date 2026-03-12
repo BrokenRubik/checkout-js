@@ -12,31 +12,90 @@ import { withForm, WithFormProps } from '../../ui/form';
 import withPayment, { WithPaymentProps } from '../withPayment';
 import { PaymentFormService, PaymentFormValues } from '@bigcommerce/checkout/payment-integration-api';
 
+// ---------------------------------------------------------------------------
 // Versapay SDK types
+// ---------------------------------------------------------------------------
+
 interface VersapayClient {
     initFrame: (container: HTMLElement, height: string, width: string) => Promise<void>;
     onApproval: (
         onResolve: (result: VersapayApprovalResult) => void,
         onReject: (error: VersapayError) => void
     ) => void;
+    onPartialPayment: (
+        onResolve: (result: VersapayPartialPaymentResult) => void,
+        onReject: (error: VersapayError) => void
+    ) => void;
     submitEvents: () => void;
 }
 
 interface VersapayApprovalResult {
-    paymentType: 'creditCard' | 'ach' | 'giftCard' | 'applePay';
+    paymentTypeName: string;
     token: string;
+    amount?: number;
+    partialPayments?: VersapayPartialPayment[];
+}
+
+interface VersapayPartialPayment {
+    token: string;
+    paymentTypeName: string;
+    amount?: number;
+}
+
+interface VersapayPartialPaymentResult {
+    token: string;
+    paymentTypeName: string;
+    amount?: number;
 }
 
 interface VersapayError {
-    paymentType: string;
-    error: string;
+    message?: string;
+    error?: string;
+    [key: string]: unknown;
 }
 
 interface VersapayWindow extends Window {
     versapay?: {
-        initClient: (sessionId: string, styles?: object, fontUrls?: string[]) => Promise<VersapayClient>;
+        initClient: (sessionId: string, styles?: object, fontUrls?: string[]) => VersapayClient;
     };
 }
+
+// ---------------------------------------------------------------------------
+// BigCommerce Storefront Cart types (minimal)
+// ---------------------------------------------------------------------------
+
+interface CartLineItem {
+    productId: number;
+    sku: string;
+    name: string;
+    quantity: number;
+    originalPrice: number;
+}
+
+interface StorefrontCart {
+    id: string;
+    cartAmount: number;
+    currency: { code: string };
+    lineItems: {
+        physicalItems: CartLineItem[];
+        digitalItems: CartLineItem[];
+        customItems: CartLineItem[];
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Payment payload types
+// ---------------------------------------------------------------------------
+
+interface VersapayPayment {
+    token: string;
+    payment_type: string;
+    amount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Component props
+// ---------------------------------------------------------------------------
 
 export interface VersapayPaymentMethodProps {
     method: PaymentMethod;
@@ -44,15 +103,13 @@ export interface VersapayPaymentMethodProps {
     onUnhandledError?(error: Error): void;
 }
 
-// Versapay configuration from method initialization data
 interface VersapayConfig {
     apiToken: string;
     apiKey: string;
     endpoint: string;
 }
 
-// const VERSAPAY_SDK_URL = 'https://ecommerce-api-uat.versapay.com/client.js'; // TODO: Change to production URL when ready
-const VERSAPAY_AUTHORIZATION_AMOUNT = 0.01; // Always authorize $0.01
+const VERSAPAY_AUTHORIZATION_AMOUNT = 0.01;
 
 const VersapayPaymentMethod: FunctionComponent<
     VersapayPaymentMethodProps &
@@ -75,50 +132,100 @@ const VersapayPaymentMethod: FunctionComponent<
 
     const containerRef = useRef<HTMLDivElement>(null);
     const clientRef = useRef<VersapayClient | null>(null);
-    const tokenRef = useRef<string | null>(null);
+    // Mirrors clientOnApprovalFirstRun from client.js
+    const approvalFirstRunRef = useRef<boolean>(true);
+    // Holds sessionId in a ref so async callbacks always read the latest value
+    const sessionIdRef = useRef<string | null>(null);
+    // Holds fetched cart data
+    const cartRef = useRef<StorefrontCart | null>(null);
 
-    // Get Versapay configuration from method's initialization data
     const versapayConfig: VersapayConfig = {
         apiToken: method.initializationData?.versapayApiToken || '',
         apiKey: method.initializationData?.versapayApiKey || '',
         endpoint: method.initializationData?.versapayEndpoint || 'https://ecommerce-api.versapay.com',
     };
 
-    // Load Versapay SDK script
+    const baseVersapayURL = 'https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        sessionIdRef.current = sessionId;
+    }, [sessionId]);
+
+    // -----------------------------------------------------------------------
+    // Fetch cart from BigCommerce Storefront API
+    // -----------------------------------------------------------------------
+    const fetchCart = useCallback(async (): Promise<StorefrontCart> => {
+        const response = await fetch('/api/storefront/carts', {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch cart');
+        }
+
+        const carts: StorefrontCart[] = await response.json();
+
+        if (!carts || carts.length === 0) {
+            throw new Error('No active cart found');
+        }
+
+        return carts[0];
+    }, []);
+
+    // -----------------------------------------------------------------------
+    // Build the "lines" array for the backend in the same format as app.js
+    // -----------------------------------------------------------------------
+    const buildCartLines = useCallback((cart: StorefrontCart) => {
+        const allItems: CartLineItem[] = [
+            ...cart.lineItems.physicalItems,
+            ...cart.lineItems.digitalItems,
+            ...cart.lineItems.customItems,
+        ];
+
+        return allItems.map(item => ({
+            type: 'Item',
+            number: String(item.productId),
+            description: item.name,
+            sku: item.sku,
+            price: item.originalPrice,
+            quantity: item.quantity,
+        }));
+    }, []);
+
+    // -----------------------------------------------------------------------
+    // Load the Versapay SDK script dynamically (mirrors client.js loadScript)
+    // -----------------------------------------------------------------------
     const loadVersapaySdk = useCallback((): Promise<void> => {
         return new Promise((resolve, reject) => {
-            // Check if already loaded
             if ((window as VersapayWindow).versapay) {
                 resolve();
                 return;
             }
 
+            // Derive the SDK URL from the configured endpoint (strip /api/v2 if present)
+            const sdkBase = versapayConfig.endpoint.replace(/\/api\/v2\/?$/, '');
+            const sdkUrl = `${sdkBase}/client.js`;
+
             const script = document.createElement('script');
-            script.src = versapayConfig.endpoint.replace('/api/v2', '') + '/client.js';
+            script.src = sdkUrl;
             script.async = true;
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load Versapay SDK'));
-            document.head.appendChild(script);
+            script.onerror = () => reject(new Error(`Failed to load Versapay SDK from ${sdkUrl}`));
+            document.body.appendChild(script);
         });
     }, [versapayConfig.endpoint]);
 
-    // Create session with Versapay (this would typically be done server-side)
-    const createVersapaySession = useCallback(async (): Promise<string> => {
-        // TODO: This should be a call to your backend which then calls Versapay
-        // For now, we'll use a placeholder that should be replaced with actual server-side call
-
-        // The backend should:
-        // 1. POST to https://ecommerce-api.versapay.com/api/v2/sessions
-        // 2. Include gatewayAuthorization with apiToken and apiKey
-        // 3. Include options for paymentTypes (creditCard)
-
-        const response = await fetch('https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com/api/session', {
+    // -----------------------------------------------------------------------
+    // Create Versapay session (calls our backend /api/session)
+    // -----------------------------------------------------------------------
+    const createVersapaySession = useCallback(async (cartAmount: number): Promise<string> => {
+        const response = await fetch(`${baseVersapayURL}/api/session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                // methodId: method.id,
-                // gatewayId: method.gateway,
-                orderTotal: VERSAPAY_AUTHORIZATION_AMOUNT,
+                orderTotal: String(cartAmount.toFixed(2)),
             }),
         });
 
@@ -127,157 +234,284 @@ const VersapayPaymentMethod: FunctionComponent<
         }
 
         const data = await response.json();
-        return data.sessionKey;
-    }, [method.id, method.gateway]);
 
-    // Initialize Versapay iframe
-    const initializeVersapayIframe = useCallback(async (sessionId: string) => {
-        if (!containerRef.current) return;
-
-        await loadVersapaySdk();
-
-        const versapayWindow = window as VersapayWindow;
-        if (!versapayWindow.versapay) {
-            throw new Error('Versapay SDK not loaded');
+        if (data.error) {
+            throw new Error(data.error);
         }
 
-        // Custom styles for the iframe (optional)
-        const styles = {
-            input: {
-                'font-size': '14px',
-                'color': '#333',
-            },
-            'input:focus': {
-                'border-color': '#0073bf',
-            },
-        };
+        return data.sessionKey;
+    }, []);
 
-        const client = await versapayWindow.versapay.initClient(sessionId, styles);
-        clientRef.current = client;
+    // -----------------------------------------------------------------------
+    // Send payments array to backend (mirrors processPaymentOnBackend in client.js)
+    // -----------------------------------------------------------------------
+    const processPaymentOnBackend = useCallback(async (payments: VersapayPayment[]) => {
+        const cart = cartRef.current;
 
-        // Set up approval callback
-        client.onApproval(
-            async (result: VersapayApprovalResult) => {
-                console.log('Versapay payment approved:', result);
-                tokenRef.current = result.token;
-                setVersapayError(null);
+        if (!cart) {
+            throw new Error('Cart data not available');
+        }
 
-                // Process the payment with $0.01 authorization
-                await processPayment(result.token);
-            },
-            (error: VersapayError) => {
-                console.error('Versapay payment rejected:', error);
-                setVersapayError(error.error);
-                onUnhandledError(new Error(error.error));
-            }
-        );
+        const lines = buildCartLines(cart);
 
-        // Initialize the iframe
-        await client.initFrame(containerRef.current, '358px', '100%');
-        setIsInitializing(false);
-    }, [loadVersapaySdk, onUnhandledError]);
+        const response = await fetch(`${baseVersapayURL}/api/process-payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionKey: sessionIdRef.current,
+                payments,
+                lines,                          // dynamic cart lines
+                currency: cart.currency.code,
+                amounts: {
+                    shipping: 0,
+                    discount: 0,
+                    tax: 0,
+                },
+            }),
+        });
 
-    // Process payment with Versapay and BigCommerce
-    const processPayment = useCallback(async (token: string) => {
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || errorData.error || 'Backend payment processing failed');
+        }
+
+        return response.json();
+    }, [buildCartLines]);
+
+    // -----------------------------------------------------------------------
+    // Full payment flow: backend authorization → BigCommerce submitOrder
+    // Mirrors the onApproval handler in client.js
+    // -----------------------------------------------------------------------
+    const handleApproval = useCallback(async (result: VersapayApprovalResult) => {
+        approvalFirstRunRef.current = false;
+        setVersapayError(null);
         setIsProcessing(true);
         setSubmitted(true);
 
         try {
-            // Step 1: Create order in Versapay with $0.01 authorization
-            // This should be done server-side for security
-            const versapayResponse = await fetch('/api/versapay/payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: sessionId,
-                    token: token,
-                    amount: VERSAPAY_AUTHORIZATION_AMOUNT,
-                    capture: false, // Authorization only, no capture
-                    // Include order reference for NetSuite
-                    orderReference: `BC-${Date.now()}`,
-                }),
-            });
+            // Build payments array exactly as in client.js
+            const payments: VersapayPayment[] = [];
 
-            if (!versapayResponse.ok) {
-                const errorData = await versapayResponse.json();
-                throw new Error(errorData.message || 'Versapay authorization failed');
+            if (result.partialPayments) {
+                result.partialPayments.forEach(p => {
+                    payments.push({
+                        token: p.token,
+                        payment_type: p.paymentTypeName,
+                        amount: p.amount ?? 0.0,
+                    });
+                });
             }
 
-            const versapayData = await versapayResponse.json();
-            console.log('Versapay authorization successful:', versapayData);
+            payments.push({
+                token: result.token,
+                payment_type: result.paymentTypeName,
+                amount: result.amount ?? 0.0,
+            });
 
-            // Step 2: Submit order to BigCommerce
+            console.log('Versapay payment approved by iframe:', result);
+            console.log('Sending payments to backend:', payments);
+
+            // Process sale on our backend
+            const backendResult = await processPaymentOnBackend(payments);
+            console.log('Backend payment result:', backendResult);
+
+            // Submit order to BigCommerce using the primary token as nonce
             const state = await checkoutService.submitOrder({
                 payment: {
                     methodId: method.id,
                     gatewayId: method.gateway,
                     paymentData: {
-                        nonce: token,
-                        instrumentId: versapayData.transactionId,
-                        // Additional data for NetSuite integration
-                        versapay_transaction_id: versapayData.transactionId,
-                        versapay_approval_code: versapayData.approvalCode,
-                        versapay_authorization_amount: VERSAPAY_AUTHORIZATION_AMOUNT,
-                        versapay_token: token,
-                    }
-                }
+                        nonce: result.token,
+                        ...(backendResult.orderId && {
+                            instrumentId: String(backendResult.orderId),
+                        }),
+                    },
+                },
             });
 
-            // Step 3: Navigate to order confirmation
+            // Navigate to order confirmation
             const order = state.data.getOrder();
+
             if (order) {
                 navigateToOrderConfirmation(order.orderId);
             }
         } catch (error) {
             console.error('Payment processing error:', error);
-            setVersapayError((error as Error).message);
+            const message = (error as Error).message || 'Payment processing failed';
+            setVersapayError(message);
             onUnhandledError(error as Error);
+            // Allow retry
+            approvalFirstRunRef.current = true;
         } finally {
             setIsProcessing(false);
         }
-    }, [checkoutService, method.id, method.gateway, sessionId, setSubmitted, onUnhandledError]);
+    }, [checkoutService, method.id, method.gateway, processPaymentOnBackend, setSubmitted, onUnhandledError]);
 
-    // Custom submit handler for the payment form
+    // -----------------------------------------------------------------------
+    // Initialize Versapay iframe (mirrors steps 3-4 in client.js)
+    // -----------------------------------------------------------------------
+    const initializeVersapayIframe = useCallback(async (newSessionId: string) => {
+        if (!containerRef.current) return;
+
+        await loadVersapaySdk();
+
+        const versapayWindow = window as VersapayWindow;
+
+        if (!versapayWindow.versapay) {
+            throw new Error('Versapay SDK not loaded');
+        }
+
+        const styles = {
+            html: {
+                'font-family': 'Karla, Arial, Helvetica, sans-serif',
+                'font-size': '13px',
+            },
+            h1: {
+                display: 'none',
+                visibility: 'hidden',
+                'font-size': '0',
+            },
+            'label.form-label': {
+                'font-size': '14px',
+            },
+            input: {
+                'font-size': '13px',
+                color: '#333',
+                height: '44px',
+                'line-height': '22px',
+            },
+            select: {
+                'font-size': '13px',
+                color: '#333',
+                height: '44px',
+                'line-height': '22px',
+            },
+            '.form-error': {
+                'font-size': '12px',
+                'line-height': '12px',
+            },
+            '.form-div-half': {
+                'margin-bottom': '15px',
+            },
+            '.form-div-full': {
+                'margin-bottom': '15px',
+            },
+            '#accountNo': {
+                'padding-left': 'calc(2rem + 20px)',
+            },
+        };
+
+        const fontUrls = [
+            'https://fonts.googleapis.com/css?family=Montserrat:400%7COswald:300%7CKarla:400&display=swap',
+        ];
+
+        // initClient is synchronous in the SDK (returns client, not a Promise)
+        const client = versapayWindow.versapay.initClient(newSessionId, styles, fontUrls);
+        clientRef.current = client;
+
+        // Set up partial payment callback
+        client.onPartialPayment(
+            (result: VersapayPartialPaymentResult) => {
+                console.log('Versapay partial payment:', result);
+                // Partial payments are collected; full approval fires onApproval
+            },
+            (error: VersapayError) => {
+                const message = error.message || JSON.stringify(error);
+                console.error('Versapay partial payment error:', message);
+                setVersapayError('Payment error: ' + message);
+            }
+        );
+
+        // Set up approval callback
+        client.onApproval(
+            (result: VersapayApprovalResult) => {
+                void handleApproval(result);
+            },
+            (error: VersapayError) => {
+                approvalFirstRunRef.current = true;
+                const message = error.message || JSON.stringify(error);
+                console.error('Versapay approval error:', message);
+                setVersapayError('Approval error: ' + message);
+                onUnhandledError(new Error(message));
+            }
+        );
+
+        // Initialize the iframe
+        const container = containerRef.current;
+        const docWidth = container.clientWidth;
+        await client.initFrame(container, '300px', `${docWidth}px`);
+
+        console.log('Versapay Frame Ready');
+        setIsInitializing(false);
+    }, [loadVersapaySdk, handleApproval, onUnhandledError]);
+
+    // -----------------------------------------------------------------------
+    // Custom submit handler registered with BigCommerce payment form
+    // Mirrors the placeOrderBtn click handler in client.js
+    // -----------------------------------------------------------------------
     const handleCustomSubmit = useCallback(async () => {
         if (!clientRef.current) {
             console.error('Versapay client not initialized');
             return;
         }
 
-        // Trigger the iframe form submission
-        // This will call the onApproval callback with the result
-        clientRef.current.submitEvents();
+        if (approvalFirstRunRef.current) {
+            // Trigger iframe validation — onApproval will take it from here
+            clientRef.current.submitEvents();
+        } else {
+            console.log('Versapay: already approved, skipping submitEvents');
+        }
     }, []);
 
-    // Initialize Versapay on mount
+    // -----------------------------------------------------------------------
+    // Initialization effect: fetch cart → create session → init iframe
+    // -----------------------------------------------------------------------
     useEffect(() => {
+        let cancelled = false;
+
         const init = async () => {
             try {
                 setIsInitializing(true);
 
-                // Create Versapay session
-                const newSessionId = await createVersapaySession();
+                // Fetch cart data first so we have line items ready
+                const cart = await fetchCart();
+
+                if (cancelled) return;
+
+                cartRef.current = cart;
+
+                // Create session using cart total
+                const newSessionId = await createVersapaySession(cart.cartAmount);
+
+                if (cancelled) return;
+
                 setSessionId(newSessionId);
+                sessionIdRef.current = newSessionId;
 
                 // Initialize iframe
                 await initializeVersapayIframe(newSessionId);
             } catch (error) {
+                if (cancelled) return;
                 console.error('Failed to initialize Versapay:', error);
                 onUnhandledError(error as Error);
                 setIsInitializing(false);
             }
         };
 
-        init();
+        void init();
 
         return () => {
-            // Cleanup
+            cancelled = true;
             clientRef.current = null;
-            tokenRef.current = null;
+            approvalFirstRunRef.current = true;
         };
-    }, [createVersapaySession, initializeVersapayIframe, onUnhandledError]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Intentionally empty deps: initialization runs once on mount.
+    // Functions are stable refs (useCallback) and captured via closure/refs.
 
-    // Register custom submit handler
+    // -----------------------------------------------------------------------
+    // Register custom submit handler with BigCommerce
+    // -----------------------------------------------------------------------
     useEffect(() => {
         const setSubmit = paymentForm.setSubmit;
         setSubmit(method, handleCustomSubmit);
@@ -287,6 +521,9 @@ const VersapayPaymentMethod: FunctionComponent<
         };
     }, [method, paymentForm.setSubmit, handleCustomSubmit]);
 
+    // -----------------------------------------------------------------------
+    // Render
+    // -----------------------------------------------------------------------
     return (
         <LoadingOverlay isLoading={isInitializing || isProcessing}>
             <div className="versapay-payment-method">
@@ -295,21 +532,27 @@ const VersapayPaymentMethod: FunctionComponent<
                     ref={containerRef}
                     id="versapay-container"
                     style={{
-                        minHeight: '358px',
+                        minHeight: '300px',
                         width: '100%',
                     }}
                 />
 
                 {/* Error display */}
                 {versapayError && (
-                    <div className="versapay-error" style={{ color: 'red', marginTop: '10px' }}>
+                    <div
+                        className="versapay-error"
+                        style={{ color: 'red', marginTop: '10px', fontSize: '13px' }}
+                    >
                         {versapayError}
                     </div>
                 )}
 
-                {/* Info message about authorization */}
-                <div className="versapay-info" style={{ marginTop: '15px', fontSize: '12px', color: '#666' }}>
-                    A temporary authorization of $0.01 will be placed on your card.
+                {/* Authorization notice */}
+                <div
+                    className="versapay-info"
+                    style={{ marginTop: '15px', fontSize: '12px', color: '#666' }}
+                >
+                    A temporary authorization of ${VERSAPAY_AUTHORIZATION_AMOUNT.toFixed(2)} will be placed on your card.
                     The final amount will be charged when your order is processed.
                 </div>
             </div>
