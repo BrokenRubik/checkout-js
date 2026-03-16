@@ -451,14 +451,14 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
         const uniqueId = selectedMethod ? getUniquePaymentMethodId(selectedMethod.id, selectedMethod.gateway) : '';
         const customSubmit = selectedMethod && submitFunctionsRef.current[uniqueId];
 
-        console.log('[Payment v2] handleSubmit called. selectedMethod:', selectedMethod?.id, 'gateway:', selectedMethod?.gateway, 'uniqueId:', uniqueId, 'customSubmit:', !!customSubmit, 'allFunctions:', Object.keys(submitFunctionsRef.current));
+        console.log('[Payment v3] handleSubmit called. selectedMethod:', selectedMethod?.id, 'gateway:', selectedMethod?.gateway, 'uniqueId:', uniqueId, 'customSubmit:', !!customSubmit, 'allFunctions:', Object.keys(submitFunctionsRef.current));
 
         if (customSubmit) {
-            console.log('[Payment v2] Calling customSubmit');
+            console.log('[Payment v3] Calling customSubmit');
             return customSubmit(values);
         }
 
-        console.log('[Payment v2] No customSubmit found, using default submitOrder');
+        console.log('[Payment v3] No customSubmit found, using default submitOrder');
 
         try {
             const state = await submitOrder(mapToOrderRequestBody(values, isPaymentDataRequired()));
@@ -515,28 +515,12 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
     ): void => {
         const uniqueId = getUniquePaymentMethodId(method.id, method.gateway);
 
-        console.log('[Payment v2] setSubmit called. methodId:', method.id, 'gateway:', method.gateway, 'uniqueId:', uniqueId, 'fn:', fn);
-
-        if (submitFunctionsRef.current[uniqueId] === fn) {
-            console.log('[Payment v2] setSubmit skipped (same fn)');
-            return;
-        }
+        console.log('[Payment v3] setSubmit called. methodId:', method.id, 'gateway:', method.gateway, 'uniqueId:', uniqueId, 'fn:', fn ? 'function' : 'null');
 
         submitFunctionsRef.current = {
             ...submitFunctionsRef.current,
             [uniqueId]: fn,
         };
-
-        console.log('[Payment v2] submitFunctionsRef updated. Keys:', Object.keys(submitFunctionsRef.current));
-
-        setState(prevState => {
-            const updated = {
-                ...prevState.submitFunctions,
-                [uniqueId]: fn,
-            };
-
-            return { ...prevState, submitFunctions: updated };
-        });
     };
 
     const setValidationSchema = (
