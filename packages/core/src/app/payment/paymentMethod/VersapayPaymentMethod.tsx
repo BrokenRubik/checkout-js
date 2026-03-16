@@ -62,6 +62,7 @@ interface VersapayWindow extends Window {
 // ---------------------------------------------------------------------------
 // Payment payload types
 // ---------------------------------------------------------------------------
+
 interface VersapayPayment {
     token: string;
     payment_type: string;
@@ -71,6 +72,7 @@ interface VersapayPayment {
 // ---------------------------------------------------------------------------
 // Component props
 // ---------------------------------------------------------------------------
+
 export interface VersapayPaymentMethodProps {
     method: PaymentMethod;
     paymentForm: PaymentFormService;
@@ -102,11 +104,8 @@ const VersapayPaymentMethod: FunctionComponent<
     const approvalFirstRunRef = useRef<boolean>(true);
     // Holds sessionId in a ref so async callbacks always read the latest value
     const sessionIdRef = useRef<string | null>(null);
-
-    // Control manual de la promesa de pago para el botón de BigCommerce
-    const paymentResolverRef = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
-    // Ref to always call the latest handleApproval from the SDK callback
-    const handleApprovalRef = useRef<(result: VersapayApprovalResult) => Promise<void>>();
+    // Ref to always call the latest handleApproval from the SDK callback (avoids stale closure)
+    const handleApprovalRef = useRef<(result: VersapayApprovalResult) => void>(noop);
 
     const baseVersapayURL = 'https://test-bigcommerce-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
@@ -219,6 +218,7 @@ const VersapayPaymentMethod: FunctionComponent<
     // Mirrors the onApproval handler in client.js
     // -----------------------------------------------------------------------
     const handleApproval = useCallback(async (result: VersapayApprovalResult) => {
+        console.log('[Versapay v1] handleApproval ENTERED', result);
         approvalFirstRunRef.current = false;
         setIsProcessing(true);
         setSubmitted(true);
@@ -243,12 +243,11 @@ const VersapayPaymentMethod: FunctionComponent<
                 amount: result.amount ?? 0.0,
             });
 
-            console.log('Versapay payment approved by iframe:', result);
-            console.log('Sending payments to backend:', payments);
+            console.log('[Versapay v1] Payments to send:', payments);
 
-            // Fetch the freshest state to avoid stale closures
-            const currentState = checkoutService.getState().data;
-            const currentCart = currentState.getCart();
+            // Use checkoutService.getState() to get FRESH state (avoids stale closure)
+            const freshState = checkoutService.getState();
+            const currentCart = freshState.data.getCart();
 
             if (!currentCart) {
                 throw new Error('Cart data not available');
@@ -256,7 +255,7 @@ const VersapayPaymentMethod: FunctionComponent<
 
             // Process sale on our backend
             const backendResult = await processPaymentOnBackend(payments, currentCart);
-            console.log('Backend payment result:', backendResult);
+            console.log('[Versapay v1] Backend payment result:', backendResult);
 
             // Submit order to BigCommerce using the primary token as nonce
             const state = await checkoutService.submitOrder({
@@ -277,35 +276,31 @@ const VersapayPaymentMethod: FunctionComponent<
 
             if (order) {
                 try {
-                    const checkoutId = currentState.getCheckout()?.id;
+                    const freshCheckoutId = checkoutService.getState().data.getCheckout()?.id;
                     await fetch(`${baseVersapayURL}/api/update-order`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Checkout-Id': checkoutId || '',
+                            'X-Checkout-Id': freshCheckoutId || '',
                         },
                         body: JSON.stringify({
                             orderId: order.orderId,
                             versapayToken: result.token,
                         }),
                     });
-                    console.log('Order updated: status → Awaiting Fulfillment, token saved');
+                    console.log('[Versapay v1] Order updated: status → Awaiting Fulfillment, token saved');
                 } catch (updateError) {
                     // Non-fatal: log the error but don't block the customer from seeing confirmation
-                    console.error('Failed to update order post-payment:', updateError);
+                    console.error('[Versapay v1] Failed to update order post-payment:', updateError);
                 }
 
-                // Resolve BigCommerce Promise to complete UI loading state
-                paymentResolverRef.current?.resolve();
                 navigateToOrderConfirmation(order.orderId);
             }
         } catch (error) {
-            console.error('Payment processing error:', error);
+            console.error('[Versapay v1] Payment processing error:', error);
             onUnhandledError(error as Error);
             // Allow retry
             approvalFirstRunRef.current = true;
-            // Reject BigCommerce Promise to stop UI loading state and show error
-            paymentResolverRef.current?.reject(error as Error);
         } finally {
             setIsProcessing(false);
         }
@@ -381,27 +376,25 @@ const VersapayPaymentMethod: FunctionComponent<
         // Set up partial payment callback
         client.onPartialPayment(
             (result: VersapayPartialPaymentResult) => {
-                console.log('Versapay partial payment:', result);
+                console.log('[Versapay v1] Partial payment:', result);
                 // Partial payments are collected; full approval fires onApproval
             },
             (error: VersapayError) => {
                 const message = error.message || JSON.stringify(error);
-                console.error('Versapay partial payment error:', message);
+                console.error('[Versapay v1] Partial payment error:', message);
             }
         );
 
-        // Set up approval callback (use ref to always call the latest version)
+        // Set up approval callback — uses ref so it always calls the latest handleApproval
         client.onApproval(
             (result: VersapayApprovalResult) => {
-                void handleApprovalRef.current?.(result);
+                console.log('[Versapay v1] onApproval callback FIRED', result);
+                handleApprovalRef.current(result);
             },
             (error: VersapayError) => {
                 approvalFirstRunRef.current = true;
                 const message = error.message || JSON.stringify(error);
-                console.error('Versapay approval error:', message);
-
-                // Reject the BigCommerce promise so the UI stops loading and shows the error
-                paymentResolverRef.current?.reject(new Error(message));
+                console.error('[Versapay v1] Approval error:', message);
                 onUnhandledError(new Error(message));
             }
         );
@@ -411,7 +404,7 @@ const VersapayPaymentMethod: FunctionComponent<
         const docWidth = container.clientWidth;
         await client.initFrame(container, '300px', `${docWidth}px`);
 
-        console.log('Versapay Frame Ready');
+        console.log('[Versapay v1] Frame Ready');
         setIsInitializing(false);
     }, [loadVersapaySdk, onUnhandledError]);
 
@@ -419,24 +412,21 @@ const VersapayPaymentMethod: FunctionComponent<
     // Custom submit handler registered with BigCommerce payment form
     // Mirrors the placeOrderBtn click handler in client.js
     // -----------------------------------------------------------------------
-    const handleCustomSubmit = useCallback((): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            if (!clientRef.current) {
-                console.error('Versapay client not initialized');
-                return reject(new Error('Versapay client not initialized'));
-            }
+    const handleCustomSubmit = useCallback(async () => {
+        console.log('[Versapay v1] handleCustomSubmit called, clientRef:', !!clientRef.current, 'approvalFirstRun:', approvalFirstRunRef.current);
 
-            // Save the promise handlers to be resolved or rejected by the iframe callbacks
-            paymentResolverRef.current = { resolve, reject };
+        if (!clientRef.current) {
+            console.error('[Versapay v1] Client not initialized');
+            return;
+        }
 
-            if (approvalFirstRunRef.current) {
-                // Trigger iframe validation — onApproval will take it from here
-                clientRef.current.submitEvents();
-            } else {
-                console.log('Versapay: already approved, skipping submitEvents');
-                resolve();
-            }
-        });
+        if (approvalFirstRunRef.current) {
+            console.log('[Versapay v1] Calling submitEvents()');
+            // Trigger iframe validation — onApproval will take it from here
+            clientRef.current.submitEvents();
+        } else {
+            console.log('[Versapay v1] Already approved, skipping submitEvents');
+        }
     }, []);
 
     // -----------------------------------------------------------------------
@@ -461,7 +451,7 @@ const VersapayPaymentMethod: FunctionComponent<
                 await initializeVersapayIframe(newSessionId);
             } catch (error) {
                 if (cancelled) return;
-                console.error('Failed to initialize Versapay:', error);
+                console.error('[Versapay v1] Failed to initialize:', error);
                 onUnhandledError(error as Error);
                 setIsInitializing(false);
             }
@@ -483,15 +473,12 @@ const VersapayPaymentMethod: FunctionComponent<
     // -----------------------------------------------------------------------
     useEffect(() => {
         const setSubmit = paymentForm.setSubmit;
-
-        // Use method.id instead of the whole method object
         setSubmit(method, handleCustomSubmit);
 
         return () => {
-            // Clean up using method.id
-            setSubmit(method, () => Promise.resolve());
+            setSubmit(method, null);
         };
-    }, [method.id, paymentForm.setSubmit, handleCustomSubmit]);
+    }, [method, paymentForm.setSubmit, handleCustomSubmit]);
 
     // -----------------------------------------------------------------------
     // Render
