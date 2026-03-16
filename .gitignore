@@ -9,6 +9,7 @@ junit.xml
 __temp__
 node_modules
 build
+dist
 coverage
 /dist-tools
 /packages/**/generated
