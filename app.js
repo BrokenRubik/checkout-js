@@ -10,11 +10,13 @@ const app = express();
 const STOREBASEURL = process.env.STOREBASEURL || '*';
 
 // Configuración de CORS más segura
-app.use(cors({
-    origin: STOREBASEURL,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Checkout-Id'],
-}));
+app.use(
+    cors({
+        origin: STOREBASEURL,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Checkout-Id'],
+    }),
+);
 
 // Seguridad adicional para iFrames y CSP
 app.use((req, res, next) => {
@@ -44,8 +46,8 @@ const validateCheckout = async (req, res, next) => {
         const response = await axios.get(url, {
             headers: {
                 'X-Auth-Token': bcAccessToken,
-                'Accept': 'application/json',
-            }
+                Accept: 'application/json',
+            },
         });
 
         if (response.status === 200) {
@@ -104,15 +106,15 @@ app.post('/api/session', validateCheckout, async (req, res) => {
 
             // Credit Card
             params.options.paymentTypes.push({
-                name: "creditCard",
+                name: 'creditCard',
                 promoted: false,
-                label: "Payment Card",
+                label: 'Payment Card',
                 fields: [
-                    { name: "cardholderName", label: "Name on Card", errorLabel: "Cardholder Name" },
-                    { name: "accountNo", label: "Credit Card Number", errorLabel: "Credit Card Number" },
-                    { name: "expDate", label: "Expiration", errorLabel: "Expiration" },
-                    { name: "cvv", label: "CVV", allowLabelUpdate: false, errorLabel: "CVV" }
-                ]
+                    { name: 'cardholderName', label: 'Name on Card', errorLabel: 'Cardholder Name' },
+                    { name: 'accountNo', label: 'Credit Card Number', errorLabel: 'Credit Card Number' },
+                    { name: 'expDate', label: 'Expiration', errorLabel: 'Expiration' },
+                    { name: 'cvv', label: 'CVV', allowLabelUpdate: false, errorLabel: 'CVV' },
+                ],
             });
         }
 
@@ -120,14 +122,16 @@ app.post('/api/session', validateCheckout, async (req, res) => {
         console.log('Request Payload:', JSON.stringify(params, null, 2));
 
         const response = await axios.post(url, params, {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
         });
 
         console.log('Sesión creada exitosamente:', response.data);
         res.json({ sessionKey: response.data.id });
-
     } catch (error) {
-        console.error('Error obteniendo session key:', error.response ? JSON.stringify(error.response.data) : error.message);
+        console.error(
+            'Error obteniendo session key:',
+            error.response ? JSON.stringify(error.response.data) : error.message,
+        );
         res.status(500).json({ error: 'Failed to create payment session' });
     }
 });
@@ -136,14 +140,7 @@ app.post('/api/session', validateCheckout, async (req, res) => {
 app.post('/api/process-payment', validateCheckout, async (req, res) => {
     try {
         const config = getVpConfig();
-        const {
-            sessionKey,
-            payments,
-            billingAddress,
-            shippingAddress,
-            lines,
-            orderNumber
-        } = req.body;
+        const { sessionKey, payments, billingAddress, shippingAddress, lines, orderNumber } = req.body;
 
         const url = `https://${config.subdomain}.versapay.com/api/v2/sessions/${sessionKey}/sales`;
 
@@ -151,7 +148,7 @@ app.post('/api/process-payment', validateCheckout, async (req, res) => {
         const payload = {
             gatewayAuthorization: {
                 apiToken: config.apiToken,
-                apiKey: config.apiKey
+                apiKey: config.apiKey,
             },
             orderNumber: orderNumber || 'SO-' + Date.now(),
             currency: 'USD',
@@ -161,7 +158,7 @@ app.post('/api/process-payment', validateCheckout, async (req, res) => {
             shippingAmount: 0,
             discountAmount: 0,
             taxAmount: 0,
-            payments: payments.map(p => ({
+            payments: payments.map((p) => ({
                 type: p.payment_type,
                 token: p.token,
                 amount: 0.01,
@@ -172,7 +169,7 @@ app.post('/api/process-payment', validateCheckout, async (req, res) => {
 
         console.log('Procesando pago en Versapay:', url);
         const response = await axios.post(url, payload, {
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
         });
 
         res.json(response.data);
@@ -206,7 +203,7 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
 
         const headers = {
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'X-Auth-Token': bcAccessToken,
         };
 
@@ -214,9 +211,9 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
         await axios.put(
             `${bcBaseUrlV2}/orders/${orderId}`,
             {
-                status_id: 11
+                status_id: 11,
             },
-            { headers }
+            { headers },
         );
 
         console.log(`Order ${orderId} status updated to Awaiting Fulfillment`);
@@ -224,10 +221,12 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
         // 2. Guardar el token de Versapay como Metafield
         if (versapayToken) {
             // Obtener metafields existentes para verificar si ya se creó antes
-            const metaRes = await axios.get(
-                `${bcBaseUrlV3}/orders/${orderId}/metafields?namespace=Versapay&key=versapay_order_id`,
-                { headers }
-            ).catch(() => ({ data: { data: [] } }));
+            const metaRes = await axios
+                .get(
+                    `${bcBaseUrlV3}/orders/${orderId}/metafields?namespace=Versapay&key=versapay_order_id`,
+                    { headers },
+                )
+                .catch(() => ({ data: { data: [] } }));
 
             const existingFields = metaRes.data?.data || [];
 
@@ -237,9 +236,9 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
                 await axios.put(
                     `${bcBaseUrlV3}/orders/${orderId}/metafields/${metafieldId}`,
                     {
-                        value: versapayToken
+                        value: versapayToken,
                     },
-                    { headers }
+                    { headers },
                 );
                 console.log(`Order ${orderId} metafield 'versapay_order_id' updated`);
             } else {
@@ -250,9 +249,9 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
                         permission_set: 'read', // Esto hace que sea invisible en el frontend de la tienda
                         namespace: 'Versapay',
                         key: 'versapay_order_id',
-                        value: versapayToken
+                        value: versapayToken,
                     },
-                    { headers }
+                    { headers },
                 );
                 console.log(`Order ${orderId} metafield 'versapay_order_id' created`);
             }
@@ -264,11 +263,10 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
             statusUpdated: true,
             tokenSaved: !!versapayToken,
         });
-
     } catch (error) {
         console.error(
             'Error updating order:',
-            error.response ? JSON.stringify(error.response.data) : error.message
+            error.response ? JSON.stringify(error.response.data) : error.message,
         );
         return res.status(500).json({
             error: 'Failed to update order',
