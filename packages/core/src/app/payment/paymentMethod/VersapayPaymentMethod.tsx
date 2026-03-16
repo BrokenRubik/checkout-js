@@ -105,7 +105,7 @@ const VersapayPaymentMethod: FunctionComponent<
     // Holds sessionId in a ref so async callbacks always read the latest value
     const sessionIdRef = useRef<string | null>(null);
 
-    // const baseVersapayURL = 'https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
+    const baseVersapayURL = 'https://bc-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -159,10 +159,10 @@ const VersapayPaymentMethod: FunctionComponent<
     // -----------------------------------------------------------------------
     const createVersapaySession = useCallback(async (): Promise<string> => {
         const checkoutId = checkoutState.data.getCheckout()?.id;
-        
-        const response = await fetch('/api/session', {
+
+        const response = await fetch(`${baseVersapayURL}/api/session`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'X-Checkout-Id': checkoutId || '',
             },
@@ -179,7 +179,7 @@ const VersapayPaymentMethod: FunctionComponent<
         }
 
         return data.sessionKey;
-    }, []);
+    }, [checkoutState]);
 
     // -----------------------------------------------------------------------
     // Send payments array to backend (mirrors processPaymentOnBackend in client.js)
@@ -188,9 +188,9 @@ const VersapayPaymentMethod: FunctionComponent<
         const lines = buildCartLines(cartData);
         const checkoutId = checkoutState.data.getCheckout()?.id;
 
-        const response = await fetch('/api/process-payment', {
+        const response = await fetch(`${baseVersapayURL}/api/process-payment`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'X-Checkout-Id': checkoutId || '',
             },
@@ -209,7 +209,7 @@ const VersapayPaymentMethod: FunctionComponent<
         }
 
         return response.json();
-    }, [buildCartLines]);
+    }, [buildCartLines, checkoutState]);
 
     // -----------------------------------------------------------------------
     // Full payment flow: backend authorization → BigCommerce submitOrder
@@ -273,9 +273,9 @@ const VersapayPaymentMethod: FunctionComponent<
             if (order) {
                 try {
                     const checkoutId = checkoutState.data.getCheckout()?.id;
-                    await fetch('/api/update-order', {
+                    await fetch(`${baseVersapayURL}/api/update-order`, {
                         method: 'POST',
-                        headers: { 
+                        headers: {
                             'Content-Type': 'application/json',
                             'X-Checkout-Id': checkoutId || '',
                         },
