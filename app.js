@@ -249,7 +249,7 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
                 await axios.post(
                     `${bcBaseUrlV3}/orders/${orderId}/metafields`,
                     {
-                        permission_set: 'read', // Esto hace que sea invisible en el frontend de la tienda
+                        permission_set: 'read',
                         namespace: 'Versapay',
                         key: 'versapay_order_id',
                         value: versapayToken,

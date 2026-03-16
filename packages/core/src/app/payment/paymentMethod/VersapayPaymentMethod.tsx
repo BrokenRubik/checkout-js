@@ -381,7 +381,7 @@ const VersapayPaymentMethod: FunctionComponent<
         const docWidth = container.clientWidth;
         await client.initFrame(container, '300px', `${docWidth}px`);
 
-        console.log('Versapay Frame Ready v1');
+        console.log('Versapay Frame Ready v2');
         setIsInitializing(false);
     }, [loadVersapaySdk, handleApproval, onUnhandledError]);
 

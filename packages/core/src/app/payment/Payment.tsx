@@ -198,6 +198,7 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
     const grandTotalChangeUnsubscribe = useRef<() => void>();
     const validationSchemasRef = useRef<validationSchemas>({});
     const lastFormValuesRef = useRef<PaymentFormValues | null>(null);
+    const submitFunctionsRef = useRef(state.submitFunctions);
 
     const renderCartStockPositionsChangedModal = (
       error: CartStockPositionsChangedError,
@@ -443,13 +444,13 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
             analyticsTracker
         } = props;
 
-        const { selectedMethod = defaultMethod, submitFunctions } = state;
+        const { selectedMethod = defaultMethod } = state;
 
         analyticsTracker.clickPayButton({ shouldCreateAccount: values.shouldCreateAccount });
 
         const customSubmit =
             selectedMethod &&
-            submitFunctions[getUniquePaymentMethodId(selectedMethod.id, selectedMethod.gateway)];
+            submitFunctionsRef.current[getUniquePaymentMethodId(selectedMethod.id, selectedMethod.gateway)];
 
         if (customSubmit) {
             return customSubmit(values);
@@ -509,18 +510,21 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
         fn: (values: PaymentFormValues) => void | null,
     ): void => {
         const uniqueId = getUniquePaymentMethodId(method.id, method.gateway);
-        const { submitFunctions } = state;
 
-        if (submitFunctions[uniqueId] === fn) {
+        if (submitFunctionsRef.current[uniqueId] === fn) {
             return;
         }
 
-        setState(prevState => ({ ...prevState,
-            submitFunctions: {
-                ...submitFunctions,
+        setState(prevState => {
+            const updated = {
+                ...prevState.submitFunctions,
                 [uniqueId]: fn,
-            },
-        }));
+            };
+
+            submitFunctionsRef.current = updated;
+
+            return { ...prevState, submitFunctions: updated };
+        });
     };
 
     const setValidationSchema = (
