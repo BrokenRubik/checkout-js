@@ -1,0 +1,225 @@
+const express = require('express');
+const axios = require('axios');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+require('dotenv').config();
+
+const app = express();
+
+app.use(cors());
+app.use(bodyParser.json());
+
+// Configuración de Versapay (Helper para Lazy Loading)
+const getVpConfig = () => ({
+    subdomain: process.env.VERSAPAY_SUBDOMAIN,
+    apiKey: process.env.VERSAPAY_API_KEY,
+    apiToken: process.env.VERSAPAY_API_TOKEN,
+});
+
+// Endpoint para obtener configuración pública
+app.get('/api/config', (req, res) => {
+    const config = getVpConfig();
+    console.log('Serving config with subdomain:', config.subdomain);
+    res.json({
+        subdomain: config.subdomain
+    });
+});
+
+// Endpoint para obtener la Session Key (Reemplaza getVSessionKey de PHP)
+app.post('/api/session', async (req, res) => {
+    try {
+        const config = getVpConfig();
+
+        const url = `https://${config.subdomain}.versapay.com/api/v2/sessions`;
+
+        let params = {};
+
+        // Lógica de autenticación: Priorizar API Token si existe, sino usar Legacy
+        if (config.apiToken && config.apiKey) {
+            console.log('Using API Token Auth');
+            params.gatewayAuthorization = {
+                apiToken: config.apiToken,
+                apiKey: config.apiKey
+            };
+
+            params.options = {
+                paymentTypes: [],
+                // avsRules: { ... } // Comentado por ahora
+            };
+
+            // Credit Card
+            params.options.paymentTypes.push({
+                name: "creditCard",
+                promoted: false,
+                label: "Payment Card",
+                fields: [
+                    { name: "cardholderName", label: "Name on Card", errorLabel: "Cardholder Name" },
+                    { name: "accountNo", label: "Credit Card Number", errorLabel: "Credit Card Number" },
+                    { name: "expDate", label: "Expiration", errorLabel: "Expiration" },
+                    { name: "cvv", label: "CVV", allowLabelUpdate: false, errorLabel: "CVV" }
+                ]
+            });
+        }
+
+        console.log('Solicitando sesión a Versapay:', url);
+        console.log('Request Payload:', JSON.stringify(params, null, 2));
+
+        const response = await axios.post(url, params, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        console.log('Sesión creada exitosamente:', response.data);
+        res.json({ sessionKey: response.data.id });
+
+    } catch (error) {
+        console.error('Error obteniendo session key:', error.response ? JSON.stringify(error.response.data) : error.message);
+        res.status(500).json({ error: 'Failed to create payment session' });
+    }
+});
+
+// Endpoint para procesar el pago (Reemplaza validate_versapay_payment de PHP)
+app.post('/api/process-payment', async (req, res) => {
+    try {
+        const config = getVpConfig();
+        const {
+            sessionKey,
+            payments,
+            billingAddress,
+            shippingAddress,
+            lines,
+            orderNumber
+        } = req.body;
+
+        const url = `https://${config.subdomain}.versapay.com/api/v2/sessions/${sessionKey}/sales`;
+
+        // Construir el payload de venta
+        const payload = {
+            gatewayAuthorization: {
+                apiToken: config.apiToken,
+                apiKey: config.apiKey
+            },
+            orderNumber: orderNumber || 'SO-' + Date.now(),
+            currency: 'USD',
+            billingAddress: billingAddress || {},
+            shippingAddress: shippingAddress || {},
+            lines,
+            shippingAmount: 0,
+            discountAmount: 0,
+            taxAmount: 0,
+            payments: payments.map(p => ({
+                type: p.payment_type,
+                token: p.token,
+                amount: 0.01,
+                // Lógica del PHP
+                capture: p.payment_type !== 'creditCard',
+            })),
+        };
+
+        console.log('Procesando pago en Versapay:', url);
+        const response = await axios.post(url, payload, {
+            headers: {'Content-Type': 'application/json'},
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('Error procesando pago:', error.response ? error.response.data : error.message);
+        res.status(500).json({
+            error: 'Payment processing failed',
+            details: error.response ? error.response.data : null,
+        });
+    }
+});
+
+// Endpoint para actualizar la orden de BigCommerce tras el pago
+// - Cambia el estado a "Awaiting Fulfillment" (status_id: 11)
+// - Guarda el token de Versapay en un metafield de la orden
+app.post('/api/update-order', async (req, res) => {
+    try {
+        const { orderId, versapayToken } = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({ error: 'orderId is required' });
+        }
+
+        const bcStoreHash = process.env.BC_STORE_HASH;
+        const bcAccessToken = process.env.BC_ACCESS_TOKEN;
+
+        // V2 se usa para los cambios de estado de la orden
+        const bcBaseUrlV2 = `https://api.bigcommerce.com/stores/${bcStoreHash}/v2`;
+        // V3 se usa para manejar Metafields
+        const bcBaseUrlV3 = `https://api.bigcommerce.com/stores/${bcStoreHash}/v3`;
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Auth-Token': bcAccessToken,
+        };
+
+        // 1. Actualizar estado de la orden → Awaiting Fulfillment (11)
+        await axios.put(
+            `${bcBaseUrlV2}/orders/${orderId}`,
+            {
+                status_id: 11
+            },
+            { headers }
+        );
+
+        console.log(`Order ${orderId} status updated to Awaiting Fulfillment`);
+
+        // 2. Guardar el token de Versapay como Metafield
+        if (versapayToken) {
+            // Obtener metafields existentes para verificar si ya se creó antes
+            const metaRes = await axios.get(
+                `${bcBaseUrlV3}/orders/${orderId}/metafields?namespace=Versapay&key=versapay_order_id`,
+                { headers }
+            ).catch(() => ({ data: { data: [] } }));
+
+            const existingFields = metaRes.data?.data || [];
+
+            if (existingFields.length > 0) {
+                // Actualizar el metafield existente
+                const metafieldId = existingFields[0].id;
+                await axios.put(
+                    `${bcBaseUrlV3}/orders/${orderId}/metafields/${metafieldId}`,
+                    {
+                        value: versapayToken
+                    },
+                    { headers }
+                );
+                console.log(`Order ${orderId} metafield 'versapay_order_id' updated`);
+            } else {
+                // Crear el metafield nuevo (sin description, tal como solicitaste)
+                await axios.post(
+                    `${bcBaseUrlV3}/orders/${orderId}/metafields`,
+                    {
+                        permission_set: 'read', // Esto hace que sea invisible en el frontend de la tienda
+                        namespace: 'Versapay',
+                        key: 'versapay_order_id',
+                        value: versapayToken
+                    },
+                    { headers }
+                );
+                console.log(`Order ${orderId} metafield 'versapay_order_id' created`);
+            }
+        }
+
+        return res.json({
+            success: true,
+            orderId,
+            statusUpdated: true,
+            tokenSaved: !!versapayToken,
+        });
+
+    } catch (error) {
+        console.error(
+            'Error updating order:',
+            error.response ? JSON.stringify(error.response.data) : error.message
+        );
+        return res.status(500).json({
+            error: 'Failed to update order',
+            details: error.response ? error.response.data : null,
+        });
+    }
+});
+
+module.exports = app;
