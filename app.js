@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const { join } = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -23,6 +24,9 @@ app.use((req, res, next) => {
 });
 
 app.use(bodyParser.json());
+
+// Health check
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Middleware para validar el checkoutId contra BigCommerce
 const validateCheckout = async (req, res, next) => {
@@ -268,6 +272,18 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
             details: error.response ? error.response.data : null,
         });
     }
+});
+
+// Servir archivos estáticos de la carpeta dist
+app.use(express.static('dist'));
+
+// Cualquier otra ruta que no sea /api debe servir el index.html del checkout (SPA)
+app.get('*', (req, res) => {
+    res.sendFile(join(__dirname, 'dist', 'index.html'), (err) => {
+        if (err) {
+            res.status(404).send('Not Found');
+        }
+    });
 });
 
 module.exports = app;
