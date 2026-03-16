@@ -515,7 +515,7 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
     ): void => {
         const uniqueId = getUniquePaymentMethodId(method.id, method.gateway);
 
-        console.log('[Payment v2] setSubmit called. methodId:', method.id, 'gateway:', method.gateway, 'uniqueId:', uniqueId, 'fn:', fn ? 'function' : 'null');
+        console.log('[Payment v2] setSubmit called. methodId:', method.id, 'gateway:', method.gateway, 'uniqueId:', uniqueId, 'fn:', fn);
 
         if (submitFunctionsRef.current[uniqueId] === fn) {
             console.log('[Payment v2] setSubmit skipped (same fn)');
