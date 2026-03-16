@@ -390,16 +390,19 @@ const VersapayPaymentMethod: FunctionComponent<
     // Mirrors the placeOrderBtn click handler in client.js
     // -----------------------------------------------------------------------
     const handleCustomSubmit = useCallback(async () => {
+        console.log('[Versapay v2] handleCustomSubmit CALLED. clientRef:', !!clientRef.current, 'approvalFirstRun:', approvalFirstRunRef.current);
+
         if (!clientRef.current) {
-            console.error('Versapay client not initialized');
+            console.error('[Versapay v2] Client not initialized');
             return;
         }
 
         if (approvalFirstRunRef.current) {
+            console.log('[Versapay v2] Calling submitEvents()');
             // Trigger iframe validation — onApproval will take it from here
             clientRef.current.submitEvents();
         } else {
-            console.log('Versapay: already approved, skipping submitEvents');
+            console.log('[Versapay v2] Already approved, skipping submitEvents');
         }
     }, []);
 
@@ -446,10 +449,12 @@ const VersapayPaymentMethod: FunctionComponent<
     // Register custom submit handler with BigCommerce
     // -----------------------------------------------------------------------
     useEffect(() => {
+        console.log('[Versapay v2] Registering custom submit. method.id:', method.id, 'method.gateway:', method.gateway);
         const setSubmit = paymentForm.setSubmit;
         setSubmit(method, handleCustomSubmit);
 
         return () => {
+            console.log('[Versapay v2] Unregistering custom submit');
             setSubmit(method, null);
         };
     }, [method, paymentForm.setSubmit, handleCustomSubmit]);
