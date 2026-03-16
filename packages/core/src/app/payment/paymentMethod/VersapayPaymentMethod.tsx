@@ -105,7 +105,7 @@ const VersapayPaymentMethod: FunctionComponent<
     // Holds sessionId in a ref so async callbacks always read the latest value
     const sessionIdRef = useRef<string | null>(null);
 
-    const baseVersapayURL = 'https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
+    // const baseVersapayURL = 'https://test-versapay-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -158,7 +158,7 @@ const VersapayPaymentMethod: FunctionComponent<
     // Create Versapay session (calls our backend /api/session)
     // -----------------------------------------------------------------------
     const createVersapaySession = useCallback(async (): Promise<string> => {
-        const response = await fetch(`${baseVersapayURL}/api/session`, {
+        const response = await fetch('/api/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
@@ -182,7 +182,7 @@ const VersapayPaymentMethod: FunctionComponent<
     const processPaymentOnBackend = useCallback(async (payments: VersapayPayment[], cartData: Cart) => {
         const lines = buildCartLines(cartData);
 
-        const response = await fetch(`${baseVersapayURL}/api/process-payment`, {
+        const response = await fetch('/api/process-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -263,7 +263,7 @@ const VersapayPaymentMethod: FunctionComponent<
 
             if (order) {
                 try {
-                    await fetch(`${baseVersapayURL}/api/update-order`, {
+                    await fetch('/api/update-order', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

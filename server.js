@@ -3,7 +3,7 @@ const app = require('./app');
 
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static('build'));
+app.use(express.static('dist'));
 
 // En src/server.ts, actualizar CORS:
 app.use((req, res, next) => {
