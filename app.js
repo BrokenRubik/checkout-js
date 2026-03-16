@@ -32,9 +32,6 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Middleware para validar el checkoutId contra BigCommerce
 const validateCheckout = async (req, res, next) => {
-
-    return next();
-
     const checkoutId = req.headers['x-checkout-id'] || req.body.checkoutId;
 
     if (!checkoutId) {

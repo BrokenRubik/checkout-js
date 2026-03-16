@@ -107,6 +107,9 @@ const VersapayPaymentMethod: FunctionComponent<
 
     const baseVersapayURL = 'https://test-bigcommerce-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
+    // Obtain checkout ID once and reuse across all API calls
+    const checkoutId = checkoutState.data.getCheckout()?.id || '';
+
     // Keep ref in sync with state
     useEffect(() => {
         sessionIdRef.current = sessionId;
@@ -160,7 +163,10 @@ const VersapayPaymentMethod: FunctionComponent<
     const createVersapaySession = useCallback(async (): Promise<string> => {
         const response = await fetch(`${baseVersapayURL}/api/session`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Checkout-Id': checkoutId,
+            },
         });
 
         if (!response.ok) {
@@ -184,7 +190,10 @@ const VersapayPaymentMethod: FunctionComponent<
 
         const response = await fetch(`${baseVersapayURL}/api/process-payment`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Checkout-Id': checkoutId,
+            },
             body: JSON.stringify({
                 sessionKey: sessionIdRef.current,
                 payments,
@@ -265,7 +274,10 @@ const VersapayPaymentMethod: FunctionComponent<
                 try {
                     await fetch(`${baseVersapayURL}/api/update-order`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Checkout-Id': checkoutId,
+                        },
                         body: JSON.stringify({
                             orderId: order.orderId,
                             versapayToken: result.token,
