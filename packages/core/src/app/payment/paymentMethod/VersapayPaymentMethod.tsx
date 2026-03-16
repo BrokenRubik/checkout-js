@@ -105,6 +105,8 @@ const VersapayPaymentMethod: FunctionComponent<
 
     // Control manual de la promesa de pago para el botón de BigCommerce
     const paymentResolverRef = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
+    // Ref to always call the latest handleApproval from the SDK callback
+    const handleApprovalRef = useRef<(result: VersapayApprovalResult) => Promise<void>>();
 
     const baseVersapayURL = 'https://test-bigcommerce-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
@@ -309,6 +311,11 @@ const VersapayPaymentMethod: FunctionComponent<
         }
     }, [checkoutService, method.id, method.gateway, processPaymentOnBackend, setSubmitted, onUnhandledError]);
 
+    // Keep the ref pointing to the latest handleApproval so the SDK callback never goes stale
+    useEffect(() => {
+        handleApprovalRef.current = handleApproval;
+    }, [handleApproval]);
+
     // -----------------------------------------------------------------------
     // Initialize Versapay iframe (mirrors steps 3-4 in client.js)
     // -----------------------------------------------------------------------
@@ -383,10 +390,10 @@ const VersapayPaymentMethod: FunctionComponent<
             }
         );
 
-        // Set up approval callback
+        // Set up approval callback (use ref to always call the latest version)
         client.onApproval(
             (result: VersapayApprovalResult) => {
-                void handleApproval(result);
+                void handleApprovalRef.current?.(result);
             },
             (error: VersapayError) => {
                 approvalFirstRunRef.current = true;
@@ -406,7 +413,7 @@ const VersapayPaymentMethod: FunctionComponent<
 
         console.log('Versapay Frame Ready');
         setIsInitializing(false);
-    }, [loadVersapaySdk, handleApproval, onUnhandledError]);
+    }, [loadVersapaySdk, onUnhandledError]);
 
     // -----------------------------------------------------------------------
     // Custom submit handler registered with BigCommerce payment form
