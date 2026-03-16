@@ -104,8 +104,6 @@ const VersapayPaymentMethod: FunctionComponent<
     const approvalFirstRunRef = useRef<boolean>(true);
     // Holds sessionId in a ref so async callbacks always read the latest value
     const sessionIdRef = useRef<string | null>(null);
-    // Ref to always call the latest handleApproval from the SDK callback (avoids stale closure)
-    const handleApprovalRef = useRef<(result: VersapayApprovalResult) => void>(noop);
 
     const baseVersapayURL = 'https://test-bigcommerce-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
@@ -160,14 +158,9 @@ const VersapayPaymentMethod: FunctionComponent<
     // Create Versapay session (calls our backend /api/session)
     // -----------------------------------------------------------------------
     const createVersapaySession = useCallback(async (): Promise<string> => {
-        const checkoutId = checkoutState.data.getCheckout()?.id;
-
         const response = await fetch(`${baseVersapayURL}/api/session`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Checkout-Id': checkoutId || '',
-            },
+            headers: { 'Content-Type': 'application/json' },
         });
 
         if (!response.ok) {
@@ -181,21 +174,17 @@ const VersapayPaymentMethod: FunctionComponent<
         }
 
         return data.sessionKey;
-    }, [checkoutState]);
+    }, []);
 
     // -----------------------------------------------------------------------
     // Send payments array to backend (mirrors processPaymentOnBackend in client.js)
     // -----------------------------------------------------------------------
     const processPaymentOnBackend = useCallback(async (payments: VersapayPayment[], cartData: Cart) => {
         const lines = buildCartLines(cartData);
-        const checkoutId = checkoutState.data.getCheckout()?.id;
 
         const response = await fetch(`${baseVersapayURL}/api/process-payment`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Checkout-Id': checkoutId || '',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 sessionKey: sessionIdRef.current,
                 payments,
@@ -211,14 +200,13 @@ const VersapayPaymentMethod: FunctionComponent<
         }
 
         return response.json();
-    }, [buildCartLines, checkoutState]);
+    }, [buildCartLines]);
 
     // -----------------------------------------------------------------------
     // Full payment flow: backend authorization → BigCommerce submitOrder
     // Mirrors the onApproval handler in client.js
     // -----------------------------------------------------------------------
     const handleApproval = useCallback(async (result: VersapayApprovalResult) => {
-        console.log('[Versapay v1] handleApproval ENTERED', result);
         approvalFirstRunRef.current = false;
         setIsProcessing(true);
         setSubmitted(true);
@@ -243,11 +231,10 @@ const VersapayPaymentMethod: FunctionComponent<
                 amount: result.amount ?? 0.0,
             });
 
-            console.log('[Versapay v1] Payments to send:', payments);
+            console.log('Versapay payment approved by iframe:', result);
+            console.log('Sending payments to backend:', payments);
 
-            // Use checkoutService.getState() to get FRESH state (avoids stale closure)
-            const freshState = checkoutService.getState();
-            const currentCart = freshState.data.getCart();
+            const currentCart = checkoutState.data.getCart();
 
             if (!currentCart) {
                 throw new Error('Cart data not available');
@@ -255,7 +242,7 @@ const VersapayPaymentMethod: FunctionComponent<
 
             // Process sale on our backend
             const backendResult = await processPaymentOnBackend(payments, currentCart);
-            console.log('[Versapay v1] Backend payment result:', backendResult);
+            console.log('Backend payment result:', backendResult);
 
             // Submit order to BigCommerce using the primary token as nonce
             const state = await checkoutService.submitOrder({
@@ -276,28 +263,24 @@ const VersapayPaymentMethod: FunctionComponent<
 
             if (order) {
                 try {
-                    const freshCheckoutId = checkoutService.getState().data.getCheckout()?.id;
                     await fetch(`${baseVersapayURL}/api/update-order`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Checkout-Id': freshCheckoutId || '',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             orderId: order.orderId,
                             versapayToken: result.token,
                         }),
                     });
-                    console.log('[Versapay v1] Order updated: status → Awaiting Fulfillment, token saved');
+                    console.log('Order updated: status → Awaiting Fulfillment, token saved');
                 } catch (updateError) {
                     // Non-fatal: log the error but don't block the customer from seeing confirmation
-                    console.error('[Versapay v1] Failed to update order post-payment:', updateError);
+                    console.error('Failed to update order post-payment:', updateError);
                 }
 
                 navigateToOrderConfirmation(order.orderId);
             }
         } catch (error) {
-            console.error('[Versapay v1] Payment processing error:', error);
+            console.error('Payment processing error:', error);
             onUnhandledError(error as Error);
             // Allow retry
             approvalFirstRunRef.current = true;
@@ -305,11 +288,6 @@ const VersapayPaymentMethod: FunctionComponent<
             setIsProcessing(false);
         }
     }, [checkoutService, method.id, method.gateway, processPaymentOnBackend, setSubmitted, onUnhandledError]);
-
-    // Keep the ref pointing to the latest handleApproval so the SDK callback never goes stale
-    useEffect(() => {
-        handleApprovalRef.current = handleApproval;
-    }, [handleApproval]);
 
     // -----------------------------------------------------------------------
     // Initialize Versapay iframe (mirrors steps 3-4 in client.js)
@@ -376,25 +354,24 @@ const VersapayPaymentMethod: FunctionComponent<
         // Set up partial payment callback
         client.onPartialPayment(
             (result: VersapayPartialPaymentResult) => {
-                console.log('[Versapay v1] Partial payment:', result);
+                console.log('Versapay partial payment:', result);
                 // Partial payments are collected; full approval fires onApproval
             },
             (error: VersapayError) => {
                 const message = error.message || JSON.stringify(error);
-                console.error('[Versapay v1] Partial payment error:', message);
+                console.error('Versapay partial payment error:', message);
             }
         );
 
-        // Set up approval callback — uses ref so it always calls the latest handleApproval
+        // Set up approval callback
         client.onApproval(
             (result: VersapayApprovalResult) => {
-                console.log('[Versapay v1] onApproval callback FIRED', result);
-                handleApprovalRef.current(result);
+                void handleApproval(result);
             },
             (error: VersapayError) => {
                 approvalFirstRunRef.current = true;
                 const message = error.message || JSON.stringify(error);
-                console.error('[Versapay v1] Approval error:', message);
+                console.error('Versapay approval error:', message);
                 onUnhandledError(new Error(message));
             }
         );
@@ -404,28 +381,25 @@ const VersapayPaymentMethod: FunctionComponent<
         const docWidth = container.clientWidth;
         await client.initFrame(container, '300px', `${docWidth}px`);
 
-        console.log('[Versapay v1] Frame Ready');
+        console.log('Versapay Frame Ready v1');
         setIsInitializing(false);
-    }, [loadVersapaySdk, onUnhandledError]);
+    }, [loadVersapaySdk, handleApproval, onUnhandledError]);
 
     // -----------------------------------------------------------------------
     // Custom submit handler registered with BigCommerce payment form
     // Mirrors the placeOrderBtn click handler in client.js
     // -----------------------------------------------------------------------
     const handleCustomSubmit = useCallback(async () => {
-        console.log('[Versapay v1] handleCustomSubmit called, clientRef:', !!clientRef.current, 'approvalFirstRun:', approvalFirstRunRef.current);
-
         if (!clientRef.current) {
-            console.error('[Versapay v1] Client not initialized');
+            console.error('Versapay client not initialized');
             return;
         }
 
         if (approvalFirstRunRef.current) {
-            console.log('[Versapay v1] Calling submitEvents()');
             // Trigger iframe validation — onApproval will take it from here
             clientRef.current.submitEvents();
         } else {
-            console.log('[Versapay v1] Already approved, skipping submitEvents');
+            console.log('Versapay: already approved, skipping submitEvents');
         }
     }, []);
 
@@ -451,7 +425,7 @@ const VersapayPaymentMethod: FunctionComponent<
                 await initializeVersapayIframe(newSessionId);
             } catch (error) {
                 if (cancelled) return;
-                console.error('[Versapay v1] Failed to initialize:', error);
+                console.error('Failed to initialize Versapay:', error);
                 onUnhandledError(error as Error);
                 setIsInitializing(false);
             }
