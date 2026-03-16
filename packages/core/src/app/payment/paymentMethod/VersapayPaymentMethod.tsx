@@ -276,7 +276,7 @@ const VersapayPaymentMethod: FunctionComponent<
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Checkout-Id': checkoutId,
+                            'X-Order-Id': String(order.orderId),
                         },
                         body: JSON.stringify({
                             orderId: order.orderId,

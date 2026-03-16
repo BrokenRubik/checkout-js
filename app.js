@@ -14,7 +14,7 @@ app.use(
     cors({
         origin: STOREBASEURL,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Checkout-Id'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Checkout-Id', 'X-Order-Id'],
     }),
 );
 
@@ -33,36 +33,47 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // Middleware para validar el checkoutId contra BigCommerce
 const validateCheckout = async (req, res, next) => {
     const checkoutId = req.headers['x-checkout-id'] || req.body.checkoutId;
+    const orderId = req.headers['x-order-id'];
 
-    if (!checkoutId) {
-        return res.status(401).json({ error: 'Checkout ID is required' });
+    if (!checkoutId && !orderId) {
+        return res.status(401).json({ error: 'Checkout ID or Order ID is required' });
     }
 
     try {
         const bcStoreHash = process.env.BC_STORE_HASH;
         const bcAccessToken = process.env.BC_ACCESS_TOKEN;
-        const url = `https://api.bigcommerce.com/stores/${bcStoreHash}/v3/checkouts/${checkoutId}`;
+        const headers = {
+            'X-Auth-Token': bcAccessToken,
+            Accept: 'application/json',
+        };
 
-        const response = await axios.get(url, {
-            headers: {
-                'X-Auth-Token': bcAccessToken,
-                Accept: 'application/json',
-            },
-        });
+        if (orderId) {
+            // Validate against the Orders API (used by update-order after checkout is closed)
+            const url = `https://api.bigcommerce.com/stores/${bcStoreHash}/v2/orders/${orderId}`;
+            const response = await axios.get(url, { headers });
 
-        if (response.status === 200) {
-            // Guardamos los datos del checkout en el request por si los necesitamos luego
-            req.checkoutData = response.data.data;
-            return next();
+            if (response.status === 200) {
+                req.orderData = response.data;
+                return next();
+            }
+        } else {
+            // Validate against the Checkouts API
+            const url = `https://api.bigcommerce.com/stores/${bcStoreHash}/v3/checkouts/${checkoutId}`;
+            const response = await axios.get(url, { headers });
+
+            if (response.status === 200) {
+                req.checkoutData = response.data.data;
+                return next();
+            }
         }
 
-        throw new Error('Invalid checkout');
+        throw new Error('Invalid session');
     } catch (error) {
         console.error(
-            'Checkout validation failed:',
+            'Validation failed:',
             error.response ? error.response.data : error.message,
         );
-        return res.status(403).json({ error: 'Unauthorized: Invalid checkout session' });
+        return res.status(403).json({ error: 'Unauthorized: Invalid session' });
     }
 };
 
