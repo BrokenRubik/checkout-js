@@ -105,7 +105,7 @@ const VersapayPaymentMethod: FunctionComponent<
     // Holds sessionId in a ref so async callbacks always read the latest value
     const sessionIdRef = useRef<string | null>(null);
 
-    const baseVersapayURL = 'https://test-bigcommerce-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
+    const baseVersapayURL = 'https://bc-checkout-sdk.atlantasuitesolutions.onlysandbox.com';
 
     // Obtain checkout ID once and reuse across all API calls
     const checkoutId = checkoutState.data.getCheckout()?.id || '';
