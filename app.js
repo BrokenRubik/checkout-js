@@ -53,10 +53,13 @@ const validateCheckout = async (req, res, next) => {
             req.checkoutData = response.data.data;
             return next();
         }
-        
+
         throw new Error('Invalid checkout');
     } catch (error) {
-        console.error('Checkout validation failed:', error.response ? error.response.data : error.message);
+        console.error(
+            'Checkout validation failed:',
+            error.response ? error.response.data : error.message,
+        );
         return res.status(403).json({ error: 'Unauthorized: Invalid checkout session' });
     }
 };
@@ -73,7 +76,7 @@ app.get('/api/config', (req, res) => {
     const config = getVpConfig();
     console.log('Serving config with subdomain:', config.subdomain);
     res.json({
-        subdomain: config.subdomain
+        subdomain: config.subdomain,
     });
 });
 
@@ -84,14 +87,14 @@ app.post('/api/session', validateCheckout, async (req, res) => {
 
         const url = `https://${config.subdomain}.versapay.com/api/v2/sessions`;
 
-        let params = {};
+        const params = {};
 
         // Lógica de autenticación: Priorizar API Token si existe, sino usar Legacy
         if (config.apiToken && config.apiKey) {
             console.log('Using API Token Auth');
             params.gatewayAuthorization = {
                 apiToken: config.apiToken,
-                apiKey: config.apiKey
+                apiKey: config.apiKey,
             };
 
             params.options = {
