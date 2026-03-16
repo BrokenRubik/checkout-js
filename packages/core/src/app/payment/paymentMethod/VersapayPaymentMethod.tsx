@@ -158,9 +158,14 @@ const VersapayPaymentMethod: FunctionComponent<
     // Create Versapay session (calls our backend /api/session)
     // -----------------------------------------------------------------------
     const createVersapaySession = useCallback(async (): Promise<string> => {
+        const checkoutId = checkoutState.data.getCheckout()?.id;
+        
         const response = await fetch('/api/session', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Checkout-Id': checkoutId || '',
+            },
         });
 
         if (!response.ok) {
@@ -181,10 +186,14 @@ const VersapayPaymentMethod: FunctionComponent<
     // -----------------------------------------------------------------------
     const processPaymentOnBackend = useCallback(async (payments: VersapayPayment[], cartData: Cart) => {
         const lines = buildCartLines(cartData);
+        const checkoutId = checkoutState.data.getCheckout()?.id;
 
         const response = await fetch('/api/process-payment', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Checkout-Id': checkoutId || '',
+            },
             body: JSON.stringify({
                 sessionKey: sessionIdRef.current,
                 payments,
@@ -263,9 +272,13 @@ const VersapayPaymentMethod: FunctionComponent<
 
             if (order) {
                 try {
+                    const checkoutId = checkoutState.data.getCheckout()?.id;
                     await fetch('/api/update-order', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-Checkout-Id': checkoutId || '',
+                        },
                         body: JSON.stringify({
                             orderId: order.orderId,
                             versapayToken: result.token,

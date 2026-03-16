@@ -6,8 +6,56 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors());
+const STOREBASEURL = process.env.STOREBASEURL || '*';
+
+// Configuración de CORS más segura
+app.use(cors({
+    origin: STOREBASEURL,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Checkout-Id'],
+}));
+
+// Seguridad adicional para iFrames y CSP
+app.use((req, res, next) => {
+    res.header('X-Frame-Options', 'ALLOWALL');
+    res.header('Content-Security-Policy', `frame-ancestors 'self' ${STOREBASEURL}`);
+    next();
+});
+
 app.use(bodyParser.json());
+
+// Middleware para validar el checkoutId contra BigCommerce
+const validateCheckout = async (req, res, next) => {
+    const checkoutId = req.headers['x-checkout-id'] || req.body.checkoutId;
+
+    if (!checkoutId) {
+        return res.status(401).json({ error: 'Checkout ID is required' });
+    }
+
+    try {
+        const bcStoreHash = process.env.BC_STORE_HASH;
+        const bcAccessToken = process.env.BC_ACCESS_TOKEN;
+        const url = `https://api.bigcommerce.com/stores/${bcStoreHash}/v3/checkouts/${checkoutId}`;
+
+        const response = await axios.get(url, {
+            headers: {
+                'X-Auth-Token': bcAccessToken,
+                'Accept': 'application/json',
+            }
+        });
+
+        if (response.status === 200) {
+            // Guardamos los datos del checkout en el request por si los necesitamos luego
+            req.checkoutData = response.data.data;
+            return next();
+        }
+        
+        throw new Error('Invalid checkout');
+    } catch (error) {
+        console.error('Checkout validation failed:', error.response ? error.response.data : error.message);
+        return res.status(403).json({ error: 'Unauthorized: Invalid checkout session' });
+    }
+};
 
 // Configuración de Versapay (Helper para Lazy Loading)
 const getVpConfig = () => ({
@@ -26,7 +74,7 @@ app.get('/api/config', (req, res) => {
 });
 
 // Endpoint para obtener la Session Key (Reemplaza getVSessionKey de PHP)
-app.post('/api/session', async (req, res) => {
+app.post('/api/session', validateCheckout, async (req, res) => {
     try {
         const config = getVpConfig();
 
@@ -78,7 +126,7 @@ app.post('/api/session', async (req, res) => {
 });
 
 // Endpoint para procesar el pago (Reemplaza validate_versapay_payment de PHP)
-app.post('/api/process-payment', async (req, res) => {
+app.post('/api/process-payment', validateCheckout, async (req, res) => {
     try {
         const config = getVpConfig();
         const {
@@ -133,7 +181,7 @@ app.post('/api/process-payment', async (req, res) => {
 // Endpoint para actualizar la orden de BigCommerce tras el pago
 // - Cambia el estado a "Awaiting Fulfillment" (status_id: 11)
 // - Guarda el token de Versapay en un metafield de la orden
-app.post('/api/update-order', async (req, res) => {
+app.post('/api/update-order', validateCheckout, async (req, res) => {
     try {
         const { orderId, versapayToken } = req.body;
 
