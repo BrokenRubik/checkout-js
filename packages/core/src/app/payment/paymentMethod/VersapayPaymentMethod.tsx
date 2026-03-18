@@ -280,7 +280,7 @@ const VersapayPaymentMethod: FunctionComponent<
                         },
                         body: JSON.stringify({
                             orderId: order.orderId,
-                            versapayToken: result.token,
+                            versapayToken: backendResult.orderId,
                         }),
                     });
                     console.log('Order updated: status → Awaiting Fulfillment, token saved');
