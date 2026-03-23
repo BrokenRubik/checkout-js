@@ -384,7 +384,10 @@ const VersapayPaymentMethod: FunctionComponent<
                 approvalFirstRunRef.current = true;
                 const message = error.message || JSON.stringify(error);
                 console.error('Versapay approval error:', message);
-                onUnhandledError(new Error(message));
+
+                if (error.error !== 'Form validation failed.') {
+                    onUnhandledError(new Error(error.error || message));
+                }
             }
         );
 
