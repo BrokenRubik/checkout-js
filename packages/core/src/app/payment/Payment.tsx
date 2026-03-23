@@ -732,14 +732,14 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
 
 // Customer IDs allowed to see Versapay as a payment option
 // Add allowed customer IDs here, e.g.: 123, 456
-const ALLOWED_VERSAPAY_CUSTOMER_IDS: number[] = [
-    1,
-    41331,
-    41992
-];
+// const ALLOWED_VERSAPAY_CUSTOMER_IDS: number[] = [
+//     1,
+//     41331,
+//     41992
+// ];
 
 // Method IDs routed to VersapayPaymentMethod (mirrors resolvePaymentMethod.ts)
-const VERSAPAY_METHOD_IDS = new Set(['instore', 'versapay', 'testgateway']);
+// const VERSAPAY_METHOD_IDS = new Set(['instore', 'versapay', 'testgateway']);
 
 export function mapToPaymentProps({
         checkoutService,
@@ -771,10 +771,10 @@ export function mapToPaymentProps({
     const { isComplete = false } = getOrder() || {};
     const allMethods = getPaymentMethods() || EMPTY_ARRAY;
 
-    const isVersapayAllowed = !!customer && ALLOWED_VERSAPAY_CUSTOMER_IDS.includes(customer.id);
-    const methods = isVersapayAllowed
-        ? allMethods
-        : allMethods.filter(m => !VERSAPAY_METHOD_IDS.has(m.id) && m.gateway !== 'versapay');
+    // const isVersapayAllowed = !!customer && ALLOWED_VERSAPAY_CUSTOMER_IDS.includes(customer.id);
+    // const methods = isVersapayAllowed
+    //     ? allMethods
+    //     : allMethods.filter(m => !VERSAPAY_METHOD_IDS.has(m.id) && m.gateway !== 'versapay');
 
     if (!checkout || !config || !customer || isComplete) {
         return null;
@@ -794,7 +794,7 @@ export function mapToPaymentProps({
         checkout,
         consignments,
         getPaymentMethod,
-        methods,
+        methods: allMethods,
         paymentProviderCustomer,
     });
 
