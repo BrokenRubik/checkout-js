@@ -125,13 +125,18 @@ const VersapayPaymentMethod: FunctionComponent<
             ...(cartData.lineItems.customItems ?? []),
         ];
 
-        return allItems.map(item => ({
-            type: 'Item',
-            number: item.sku,
-            description: item.name,
-            price: item.listPrice,
-            quantity: item.quantity,
-        }));
+        return allItems.map(item => {
+            const fallback = 'productId' in item ? String(item.productId) : item.id;
+            const number = item.sku && item.sku.trim() !== '' ? item.sku : fallback;
+
+            return {
+                type: 'Item',
+                number,
+                description: item.name,
+                price: item.listPrice,
+                quantity: item.quantity,
+            };
+        });
     }, []);
 
     // -----------------------------------------------------------------------
