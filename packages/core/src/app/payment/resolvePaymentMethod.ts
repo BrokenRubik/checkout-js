@@ -13,9 +13,6 @@ const VersapayPaymentMethod = lazy(() => import('./paymentMethod/VersapayPayment
 export default function resolvePaymentMethod(
     query: PaymentMethodResolveId
 ): ComponentType<PaymentMethodProps> | undefined {
-    // We log the ID to identify which method we want to intercept
-    // console.log('Resolving Payment Method:', query.id, query);
-
     // We intercept ONLY if the ID matches what we expect.
     // If you're using a "Test Payment Provider" method, it's usually 'testgateway' or similar.
     // If it's a "Manual Payment," it could be 'bankdeposit', 'check', etc.

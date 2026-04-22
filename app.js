@@ -129,18 +129,18 @@ app.post('/api/session', validateCheckout, async (req, res) => {
             });
         }
 
-        console.log('Solicitando sesión a Versapay:', url);
-        console.log('Request Payload:', JSON.stringify(params, null, 2));
+        // console.log('Requesting session from Versapay:', url);
+        // console.log('Request Payload:', JSON.stringify(params, null, 2));
 
         const response = await axios.post(url, params, {
             headers: { 'Content-Type': 'application/json' },
         });
 
-        console.log('Sesión creada exitosamente:', response.data);
+        console.log('Session created:', response.data);
         res.json({ sessionKey: response.data.id });
     } catch (error) {
         console.error(
-            'Error obteniendo session key:',
+            'Error retrieving session key:',
             error.response ? JSON.stringify(error.response.data) : error.message,
         );
         res.status(500).json({ error: 'Failed to create payment session' });
@@ -178,14 +178,14 @@ app.post('/api/process-payment', validateCheckout, async (req, res) => {
             })),
         };
 
-        console.log('Procesando pago en Versapay:', url);
+        console.log('Processing payment in Versapay:', url);
         const response = await axios.post(url, payload, {
             headers: { 'Content-Type': 'application/json' },
         });
 
         res.json(response.data);
     } catch (error) {
-        console.error('Error procesando pago:', error.response ? error.response.data : error.message);
+        console.error('Error processing payment:', error.response ? error.response.data : error.message);
         res.status(500).json({
             error: 'Payment processing failed',
             details: error.response ? error.response.data : null,

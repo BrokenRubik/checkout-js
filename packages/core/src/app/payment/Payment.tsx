@@ -451,14 +451,9 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
         const uniqueId = selectedMethod ? getUniquePaymentMethodId(selectedMethod.id, selectedMethod.gateway) : '';
         const customSubmit = selectedMethod && submitFunctionsRef.current[uniqueId];
 
-        console.log('[Payment v3] handleSubmit called. selectedMethod:', selectedMethod?.id, 'gateway:', selectedMethod?.gateway, 'uniqueId:', uniqueId, 'customSubmit:', !!customSubmit, 'allFunctions:', Object.keys(submitFunctionsRef.current));
-
         if (customSubmit) {
-            console.log('[Payment v3] Calling customSubmit');
             return customSubmit(values);
         }
-
-        console.log('[Payment v3] No customSubmit found, using default submitOrder');
 
         try {
             const state = await submitOrder(mapToOrderRequestBody(values, isPaymentDataRequired()));
@@ -514,8 +509,6 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
         fn: (values: PaymentFormValues) => void | null,
     ): void => {
         const uniqueId = getUniquePaymentMethodId(method.id, method.gateway);
-
-        console.log('[Payment v3] setSubmit called. methodId:', method.id, 'gateway:', method.gateway, 'uniqueId:', uniqueId, 'hasFn:', Boolean(fn));
 
         submitFunctionsRef.current = {
             ...submitFunctionsRef.current,
