@@ -35,6 +35,17 @@ const StaticShippingOption: React.FunctionComponent<StaticShippingOptionProps> =
 
     }
 
+    // This Shipping Item description was requrested by the client, but we were unable to change it from the BC Admin Panel
+    // So we render this renderable JSX.
+    // Notice: The client must not change this value in the Shipping Item Display Name field: CUSTOM_SHIPPING_DESCRIPTION
+    const customShippingMethodDescription:React.ReactNode = (
+        <div>
+            <p>Action Required: Residential freighted orders only require a confirmed shipping method. Residential shipping options will be provided for your review with order acknowledgement from Worlds Away.</p>
+            <p>Once your order has been processed, you will receive an email from <a href='mailto:shipping@worlds-away.com'>shipping@worlds-away.com</a> with tracking instructions.</p>
+            <p>Thank you for choosing Worlds Away—we truly appreciate your business.</p>
+        </div>        
+    );
+
     return (
         <div className="shippingOption shippingOption--alt" data-test="static-shipping-option">
             {method.imageUrl && (
@@ -47,7 +58,9 @@ const StaticShippingOption: React.FunctionComponent<StaticShippingOptionProps> =
                 </span>
             )}
             <span className="shippingOption-desc body-medium">
-                {method.description}
+                {method.description === 'CUSTOM_SHIPPING_DESCRIPTION'
+                    ? customShippingMethodDescription
+                    : method.description}
                 {method.transitTime && (
                     <span className="shippingOption-transitTime">{method.transitTime}</span>
                 )}
