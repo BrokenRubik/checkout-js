@@ -34,6 +34,7 @@ const StaticShippingOption: React.FunctionComponent<StaticShippingOptionProps> =
         )
 
     }
+    // approach rooled back
 
     return (
         <div className="shippingOption shippingOption--alt" data-test="static-shipping-option">
