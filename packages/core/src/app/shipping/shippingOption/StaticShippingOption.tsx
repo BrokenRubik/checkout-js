@@ -34,8 +34,17 @@ const StaticShippingOption: React.FunctionComponent<StaticShippingOptionProps> =
         )
 
     }
-    // approach rooled back
 
+    const METHOD_ID = '7429159da6f997fd8f5e6fc5ca57b30f';
+    const METHOD_TYPE = 'shipping_pickupinstore';
+    const CUSTOM_METHOD_DESC = (
+        <>
+            <p>Action Required: Residential freighted orders only require a confirmed shipping method. Residential shipping options will be provided for your review with order acknowledgement from Worlds Away.</p>
+            <p>Once your order has been processed, you will receive an email from shipping@worlds-away.com with tracking instructions.</p>
+            <p>Thank you for choosing Worlds Away—we truly appreciate your business.</p>
+        </>
+    );
+    
     return (
         <div className="shippingOption shippingOption--alt" data-test="static-shipping-option">
             {method.imageUrl && (
@@ -48,7 +57,7 @@ const StaticShippingOption: React.FunctionComponent<StaticShippingOptionProps> =
                 </span>
             )}
             <span className="shippingOption-desc body-medium">
-                {method.description}
+                {method.id === METHOD_ID && method.type === METHOD_TYPE ? CUSTOM_METHOD_DESC : method.description}
                 {method.transitTime && (
                     <span className="shippingOption-transitTime">{method.transitTime}</span>
                 )}
