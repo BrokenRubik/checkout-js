@@ -112,7 +112,9 @@ const PaymentForm: FunctionComponent<
     const { checkoutState } = useCheckout();
     const { checkoutSettings } = checkoutState.data.getConfig() ?? {};
     const isMultiCouponEnabled = isExperimentEnabled(checkoutSettings, 'CHECKOUT-9674.multi_coupon_cart_checkout', false);
-    const shouldShowSubmitButtonWhenPaymentNotRequired = isExperimentEnabled(checkoutSettings, 'CHECKOUT-9729.show_submit_button_when_payment_not_required', false);
+    // Custom build: force fallback to `true` so $0 / no-payment-required orders can be placed
+    // without depending on the CHECKOUT-9729 experiment being enabled store-side (see Payment.tsx).
+    const shouldShowSubmitButtonWhenPaymentNotRequired = isExperimentEnabled(checkoutSettings, 'CHECKOUT-9729.show_submit_button_when_payment_not_required', true);
     const hideSubmitPaymentButton = shouldHidePaymentSubmitButton || (shouldShowSubmitButtonWhenPaymentNotRequired && isPaymentDataRequired() && isEmpty(methods));
     
     if (shouldExecuteSpamCheck) {

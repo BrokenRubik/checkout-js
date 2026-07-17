@@ -812,7 +812,10 @@ export function mapToPaymentProps({
         shouldExecuteSpamCheck: checkout.shouldExecuteSpamCheck,
         shouldLocaliseErrorMessages:
             features['PAYMENTS-6799.localise_checkout_payment_error_messages'],
-        shouldShowSubmitPaymentButton: isExperimentEnabled(config.checkoutSettings, 'CHECKOUT-9729.show_submit_button_when_payment_not_required', false),
+        // Custom build: force fallback to `true` so the "Place Order" button always renders
+        // when no payment is required (e.g. $0 total). BigCommerce gates this behind the
+        // CHECKOUT-9729 experiment; since we self-host, we don't rely on it being enabled store-side.
+        shouldShowSubmitPaymentButton: isExperimentEnabled(config.checkoutSettings, 'CHECKOUT-9729.show_submit_button_when_payment_not_required', true),
         submitOrder: checkoutService.submitOrder,
         submitOrderError: getSubmitOrderError(),
         checkoutServiceSubscribe: checkoutService.subscribe,
