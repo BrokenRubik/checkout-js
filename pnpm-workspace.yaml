@@ -21,3 +21,11 @@ allowBuilds:
 # Keep pnpm-lock.yaml a single YAML document (Nx 19 and some scanners only
 # read one). Corepack still pins pnpm through package.json "packageManager".
 pmOnFail: ignore
+
+# Security fixes for transitive packages that their parents pin to a
+# vulnerable major line.
+overrides:
+  # terser-webpack-plugin 5.x asks for ^6; 7.x has the same API.
+  'serialize-javascript@<7.0.3': ^7.0.3
+  # msw 1.x CLI -> inquirer -> external-editor asks for ^0.0.33.
+  'tmp@<0.2.6': ^0.2.6
