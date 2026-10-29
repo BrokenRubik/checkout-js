@@ -219,7 +219,12 @@ function appConfig(options, argv) {
                         test: /\.scss$/,
                         use: [
                             isProduction ? MiniCssExtractPlugin.loader : 'style-loader',
-                            'css-loader',
+                            {
+                                loader: 'css-loader',
+                                options: {
+                                    sourceMap: false,
+                                },
+                            },
                             {
                                 loader: 'sass-loader',
                                 options: {
@@ -254,12 +259,16 @@ function appConfig(options, argv) {
                     },
                     {
                         test: /\.(gif|png|jpe?g|svg)$/i,
+                        // Stop webpack 5 asset modules from emitting a second copy of
+                        // images that css-loader resolves from url().
+                        type: 'javascript/auto',
                         use: [
                             {
                                 loader: 'file-loader',
                                 options: {
                                     name: `${outputFilename}.[ext]`,
                                     outputPath: 'static',
+                                    esModule: false,
                                 },
                             },
                         ],
