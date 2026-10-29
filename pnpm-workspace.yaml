@@ -1,0 +1,31 @@
+# Only install versions published at least 7 days ago (minutes).
+# Hijacked releases are normally found and unpublished within that window.
+minimumReleaseAge: 10080
+
+# The code base imports packages it does not declare directly,
+# so keep an npm-style flat node_modules layout.
+nodeLinker: hoisted
+
+# Dependency install scripts are blocked unless set to true here.
+# Native packages below ship prebuilt binaries as optional dependencies,
+# so their fallback scripts are not needed.
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': false
+  '@swc/core': false
+  core-js: false
+  msw: false
+  nx: false
+  unrs-resolver: false
+
+# Keep pnpm-lock.yaml a single YAML document (Nx 19 and some scanners only
+# read one). Corepack still pins pnpm through package.json "packageManager".
+pmOnFail: ignore
+
+# Security fixes for transitive packages that their parents pin to a
+# vulnerable major line.
+overrides:
+  # terser-webpack-plugin 5.x asks for ^6; 7.x has the same API.
+  'serialize-javascript@<7.0.3': ^7.0.3
+  # msw 1.x CLI -> inquirer -> external-editor asks for ^0.0.33.
+  'tmp@<0.2.6': ^0.2.6

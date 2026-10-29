@@ -82,8 +82,8 @@
       "options": {
         "commands": [
           "rm -rf packages/core/src/app/generated",
-          "npx nx generate @bigcommerce/checkout/workspace-tools:auto-export --projectName=core",
-          "npx nx generate @bigcommerce/checkout/workspace-tools:polyfill-generator --projectName=core"
+          "pnpm exec nx generate @bigcommerce/checkout/workspace-tools:auto-export --projectName=core",
+          "pnpm exec nx generate @bigcommerce/checkout/workspace-tools:polyfill-generator --projectName=core"
         ],
         "parallel": false
       }

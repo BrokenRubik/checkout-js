@@ -550,13 +550,13 @@ describe('Shipping step', () => {
             await userEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1]);
 
             const randomAddress1 = JSON.parse(JSON.stringify({
-                firstName: faker.name.firstName(),
-                lastName: faker.name.lastName(),
-                address1: faker.address.streetAddress(),
-                city: faker.address.city(),
+                firstName: faker.person.firstName(),
+                lastName: faker.person.lastName(),
+                address1: faker.location.streetAddress(),
+                city: faker.location.city(),
                 countryCode: 'CC',
                 stateOrProvince: 'dummy state',
-                postalCode: faker.address.zipCode(),
+                postalCode: faker.location.zipCode(),
             }));
 
             await checkout.fillAddressForm(randomAddress1);
@@ -573,13 +573,13 @@ describe('Shipping step', () => {
             );
 
             const randomAddress2 = JSON.parse(JSON.stringify({
-                firstName: faker.name.firstName(),
-                lastName: faker.name.lastName(),
-                address1: faker.address.streetAddress(),
-                city: faker.address.city(),
+                firstName: faker.person.firstName(),
+                lastName: faker.person.lastName(),
+                address1: faker.location.streetAddress(),
+                city: faker.location.city(),
                 countryCode: 'AU',
                 stateOrProvinceCode: faker.helpers.arrayElement(['NSW', 'VIC', 'QLD', 'TAS']),
-                postalCode: faker.address.zipCode(),
+                postalCode: faker.location.zipCode(),
             }));
 
             await checkout.fillAddressForm(randomAddress2);

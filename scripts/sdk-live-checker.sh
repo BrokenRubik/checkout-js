@@ -1,14 +1,14 @@
 #!/bin/bash
 
-npm ci --silent
+pnpm install --frozen-lockfile --silent
 if [ $? -ne 0 ]; then
   echo
-  echo '❌ Error: `npm ci` failed, aborting.'
+  echo '❌ Error: `pnpm install` failed, aborting.'
   exit 1
 fi
 
 # Make sure current version of @bigcommerce/checkout-sdk exists on the CDN
-CURRENT_VERSION=`npm list --depth=0 | grep checkout-sdk | sed -E 's/.*@//'`
+CURRENT_VERSION=`node -p "require('./node_modules/@bigcommerce/checkout-sdk/package.json').version"`
 echo
 echo "ℹ️  Checking presence of checkout SDK on CDN..."
 HTTP_STATUS=`curl -s -o /dev/null -I -w "%{http_code}" https://checkout-sdk.bigcommerce.com/v1/loader-v${CURRENT_VERSION}.js`
