@@ -29,3 +29,8 @@ overrides:
   'serialize-javascript@<7.0.3': ^7.0.3
   # msw 1.x CLI -> inquirer -> external-editor asks for ^0.0.33.
   'tmp@<0.2.6': ^0.2.6
+  # nx 22.7.12 pins these to exact vulnerable versions.
+  'nx>axios': ^1.20.0
+  'nx>brace-expansion': ^5.0.11
+  'nx>follow-redirects': ^1.16.1
+  'nx>smol-toml': ^1.7.1

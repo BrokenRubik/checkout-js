@@ -4,6 +4,7 @@ import React, { type FunctionComponent, memo, type ReactNode, useCallback, useEf
 import { object, string } from 'yup';
 
 import { useCheckout, useThemeContext } from '@bigcommerce/checkout/contexts';
+import { assignLocation } from '@bigcommerce/checkout/dom-utils';
 import { TranslatedString, withLanguage, type WithLanguageProps } from '@bigcommerce/checkout/locale';
 import { PayPalFastlaneWatermark } from '@bigcommerce/checkout/paypal-fastlane-integration';
 
@@ -101,7 +102,7 @@ const GuestForm: FunctionComponent<
 
     const handleLogin: () => void = () => {
         if (shouldRedirectToStorefrontForAuth) {
-            window.location.assign(`${loginLink}?redirectTo=${checkoutLink}`);
+            assignLocation(`${loginLink}?redirectTo=${checkoutLink}`);
 
             return;
         }

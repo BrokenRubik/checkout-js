@@ -3,6 +3,8 @@ import { noop } from 'lodash';
 import React, { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { CSSTransition } from 'react-transition-group';
 
+import { isTopWindow } from '@bigcommerce/checkout/dom-utils';
+
 import { isMobileView, MobileView } from '../ui/responsive';
 
 import CheckoutStepHeader from './CheckoutStepHeader';
@@ -57,7 +59,7 @@ const CheckoutStep = ({
     const getScrollPosition = (): number | undefined => {
         const container = getParentContainer();
 
-        if (!container || window !== window.top) {
+        if (!container || !isTopWindow()) {
             return;
         }
 

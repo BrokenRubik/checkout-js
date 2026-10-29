@@ -2,6 +2,7 @@
   "name": "workspace-tools",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/workspace-tools/src",
+  "tags": [],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
@@ -46,6 +47,5 @@
         "jestConfig": "packages/workspace-tools/jest.config.js"
       }
     }
-  },
-  "tags": []
+  }
 }
