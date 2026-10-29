@@ -16,17 +16,7 @@ allowBuilds:
   core-js: false
   msw: false
   nx: false
-  puppeteer: false
   unrs-resolver: false
-  # image-webpack-loader binaries; the loader runs with `disable: true`.
-  cwebp-bin: false
-  gifsicle: false
-  mozjpeg: false
-  optipng-bin: false
-  pngquant-bin: false
-
-# Fail the install when Node or pnpm does not match package.json "engines".
-engineStrict: true
 
 # Keep pnpm-lock.yaml a single YAML document (Nx 19 and some scanners only
 # read one). Corepack still pins pnpm through package.json "packageManager".

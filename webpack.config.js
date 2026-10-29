@@ -262,12 +262,6 @@ function appConfig(options, argv) {
                                     outputPath: 'static',
                                 },
                             },
-                            {
-                                loader: 'image-webpack-loader',
-                                options: {
-                                    disable: true,
-                                },
-                            },
                         ],
                     },
                 ],
