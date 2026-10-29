@@ -1,12 +1,18 @@
 import { noop } from 'lodash';
 import React from 'react';
 
+import { isTopWindow } from '@bigcommerce/checkout/dom-utils';
 import { render, screen } from '@bigcommerce/checkout/test-utils';
 
 import { MOBILE_MAX_WIDTH } from '../ui/responsive';
 
 import CheckoutStep, { type CheckoutStepProps } from './CheckoutStep';
 import CheckoutStepType from './CheckoutStepType';
+
+jest.mock('@bigcommerce/checkout/dom-utils', () => ({
+    ...jest.requireActual('@bigcommerce/checkout/dom-utils'),
+    isTopWindow: jest.fn(() => true),
+}));
 
 jest.useFakeTimers({ legacyFakeTimers: true });
 
@@ -26,6 +32,8 @@ describe('CheckoutStep', () => {
         };
 
         isMobile = false;
+
+        (isTopWindow as jest.Mock).mockReturnValue(true);
 
         // JSDOM does not support `scrollTo`
         window.scrollTo = jest.fn();
@@ -170,12 +178,9 @@ describe('CheckoutStep', () => {
     });
 
     it('returns undefined for scroll position when window is not the top window', () => {
-        render(<CheckoutStep {...defaultProps} />);
+        (isTopWindow as jest.Mock).mockReturnValue(false);
 
-        Object.defineProperty(window, 'top', {
-            value: {},
-            writable: true,
-        });
+        render(<CheckoutStep {...defaultProps} />);
 
         expect(window.scrollTo).not.toHaveBeenCalled();
     });

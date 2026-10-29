@@ -3,6 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/core/src",
   "projectType": "library",
+  "tags": ["scope:core"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
@@ -22,10 +23,7 @@
     "prerelease-build": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": [
-          "rm -rf dist/",
-          "PRERELEASE=prerelease webpack --mode production"
-        ],
+        "commands": ["rm -rf dist/", "PRERELEASE=prerelease webpack --mode production"],
         "parallel": false
       },
       "dependsOn": [
@@ -88,6 +86,5 @@
         "parallel": false
       }
     }
-  },
-  "tags": ["scope:core"]
+  }
 }

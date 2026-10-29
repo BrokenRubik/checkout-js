@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { useCheckout } from '@bigcommerce/checkout/contexts';
+import { assignLocation } from '@bigcommerce/checkout/dom-utils';
 import { TranslatedString } from '@bigcommerce/checkout/locale';
 import { Button, ButtonVariant } from '@bigcommerce/checkout/ui';
 
@@ -24,7 +25,7 @@ export const RedirectToStorefrontLogin: React.FC<RedirectToStorefrontLoginProps>
     const { checkoutLink, loginLink } = config.links;
 
     const handleRedirect = () => {
-        return window.location.assign(`${loginLink}?redirectTo=${checkoutLink}`);
+        return assignLocation(`${loginLink}?redirectTo=${checkoutLink}`);
     }
 
     return (

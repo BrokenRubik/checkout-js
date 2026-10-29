@@ -28,6 +28,7 @@ import {
     LocaleProvider,
     ThemeProvider,
 } from '@bigcommerce/checkout/contexts';
+import { assignLocation } from '@bigcommerce/checkout/dom-utils';
 import {
     createLocaleContext,
     getLanguageService,
@@ -62,6 +63,11 @@ import Customer, { type CustomerProps } from './Customer';
 import { getGuestCustomer } from './customers.mock';
 import CustomerViewType from './CustomerViewType';
 
+jest.mock('@bigcommerce/checkout/dom-utils', () => ({
+    ...jest.requireActual('@bigcommerce/checkout/dom-utils'),
+    assignLocation: jest.fn(),
+}));
+
 describe('Customer Component', () => {
     let checkout: CheckoutPageNodeObject;
     let CheckoutTest: FunctionComponent<CheckoutProps>;
@@ -86,6 +92,8 @@ describe('Customer Component', () => {
 
     beforeEach(() => {
         window.scrollTo = jest.fn();
+
+        (assignLocation as jest.Mock).mockClear();
 
         checkoutService = createCheckoutService();
         extensionService = new ExtensionService(checkoutService, createErrorLogger());
@@ -328,15 +336,6 @@ describe('Customer Component', () => {
 
     describe('sign in link shouldRedirectToStorefrontForAuth', () => {
         it('redirects to the login page if experiment is on and shouldRedirectToStorefrontForAuth is true', async () => {
-            Object.defineProperty(window, 'location', {
-                writable: true,
-                value: {
-                    // eslint-disable-next-line @typescript-eslint/no-misused-spread
-                    ...window.location,
-                    assign: jest.fn(),
-                },
-            });
-
             const config = {
                 ...checkoutSettings,
                 storeConfig: {
@@ -353,20 +352,11 @@ describe('Customer Component', () => {
             await checkout.waitForCustomerStep();
 
             await userEvent.click(await screen.findByText('Sign in now'));
-            expect(window.location.assign).toHaveBeenCalled();
+            expect(assignLocation).toHaveBeenCalled();
         });
     });
 
     it('redirects to storefront for login if shouldRedirectToStorefrontForAuth is true and login is enforced', async () => {
-        Object.defineProperty(window, 'location', {
-            writable: true,
-            value: {
-                // eslint-disable-next-line @typescript-eslint/no-misused-spread
-                ...window.location,
-                assign: jest.fn(),
-            },
-        });
-
         const config = {
             ...checkoutSettings,
             storeConfig: {
@@ -407,7 +397,7 @@ describe('Customer Component', () => {
 
         await userEvent.click(await screen.findByText('Sign In'));
 
-        expect(window.location.assign).toHaveBeenCalled();
+        expect(assignLocation).toHaveBeenCalled();
     });
 });
 
