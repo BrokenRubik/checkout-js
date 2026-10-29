@@ -165,9 +165,9 @@ Merge conflicts, when they happen, are almost always in the small set of modifie
 The monorepo uses Nx. Standard commands from upstream apply:
 
 ```bash
-npm install
-npm run build            # build the checkout bundle
-npm start                # run the local dev server
+pnpm install
+pnpm run build           # build the checkout bundle
+pnpm start               # run the local dev server
 node app.js              # run the Node.js backend
 ```
 

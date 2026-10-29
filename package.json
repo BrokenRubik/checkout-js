@@ -6,33 +6,32 @@
   "license": "MIT",
   "engines": {
     "node": ">=24.22.1 <25",
-    "npm": "10"
+    "pnpm": ">=12"
   },
   "scripts": {
     "nx:build": "nx run core:build",
     "nx:prerelease-build": "nx run core:prerelease-build",
     "nx:dev": "nx run core:dev",
-    "preinstall": "npx check-node-version --package",
     "prebuild": "rm -rf dist && rm -rf packages/test-framework/report",
     "build": "npm-run-all nx:build",
     "build:server": "http-server dist",
     "typecheck": "tsc --noEmit -p ./tsconfig.base.json",
     "dev": "npm-run-all nx:dev",
-    "dev:vm": "WEBPACK_DONE='rsync -rvc --progress --delete --compress-level=9 build store.bcdev:/opt/bigcommerce_app/vagrant_code/vendor/bower_components/checkout-js/' npm run dev",
+    "dev:vm": "WEBPACK_DONE='rsync -rvc --progress --delete --compress-level=9 build store.bcdev:/opt/bigcommerce_app/vagrant_code/vendor/bower_components/checkout-js/' pnpm run dev",
     "dev:server": "http-server build --cors",
-    "e2e": "npm run build && npx playwright install && PORT=5005 MODE=REPLAY npx playwright test",
+    "e2e": "pnpm run build && pnpm exec playwright install && PORT=5005 MODE=REPLAY pnpm exec playwright test",
     "release": "echo 'Please do not release locally, use CircleCi'",
-    "release:alpha": "npm run lint && npm run test -- --coverage && npm run nx:prerelease-build && npm run release:version",
+    "release:alpha": "pnpm run lint && pnpm run test -- --coverage && pnpm run nx:prerelease-build && pnpm run release:version",
     "release:version": "git add dist && standard-version -a",
     "test:core": "node scripts/nx/run-tests.js --projects=core",
     "test:others": "node scripts/nx/run-tests.js --exclude='core,checkout-extension,instrument-utils'",
     "test:extension": "node scripts/nx/run-tests.js --projects=instrument-utils,checkout-extension",
-    "generate": "npx nx run core:generate",
-    "regenerate-har": "npx nx run test-framework:regenerate-har",
-    "lint": "npx nx run-many --target=lint --all",
+    "generate": "pnpm exec nx run core:generate",
+    "regenerate-har": "pnpm exec nx run test-framework:regenerate-har",
+    "lint": "pnpm exec nx run-many --target=lint --all",
     "start": "node server.js",
-    "test": "npx nx run-many --target=test --all",
-    "test:watch": "npx nx run-many --target=test --all --watch"
+    "test": "pnpm exec nx run-many --target=test --all",
+    "test:watch": "pnpm exec nx run-many --target=test --all --watch"
   },
   "jest-junit": {
     "addFileAttribute": "true",
@@ -201,5 +200,6 @@
     "scripts": {
       "prebump": "./scripts/standard-version/prebump.js"
     }
-  }
+  },
+  "packageManager": "pnpm@12.15.0"
 }

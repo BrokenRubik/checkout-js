@@ -40,13 +40,15 @@ jobs:
     parallelism: 4
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - run:
           name: "Run unit tests for packages"
           command: |
-            npx nx run-many --target=test --exclude=core,checkout-extension,instrument-utils -- --listTests | grep packages/ | sed "s|$(pwd)/||" | \
+            pnpm exec nx run-many --target=test --exclude=core,checkout-extension,instrument-utils -- --listTests | grep packages/ | sed "s|$(pwd)/||" | \
             circleci tests run \
-              --command="xargs npm run test:others -- --ci --files" \
+              --command="xargs pnpm run test:others -- --ci --files" \
               --verbose \
               --split-by=timings
       - run:
@@ -60,13 +62,15 @@ jobs:
     parallelism: 2
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - run:
           name: "Run unit tests for checkout extension"
           command: |
-            npx nx run-many --target=test --projects=instrument-utils,checkout-extension -- --listTests | grep packages/ | sed "s|$(pwd)/||" | \
+            pnpm exec nx run-many --target=test --projects=instrument-utils,checkout-extension -- --listTests | grep packages/ | sed "s|$(pwd)/||" | \
             circleci tests run \
-              --command="xargs npm run test:extension -- --ci --files" \
+              --command="xargs pnpm run test:extension -- --ci --files" \
               --verbose \
               --split-by=timings
       - run:
@@ -80,14 +84,16 @@ jobs:
     parallelism: 4
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - run:
           name: "Run unit tests for core package"
           command: |
-            npx nx run core:generate
-            npx nx test core -- --listTests | grep packages/ | sed "s|$(pwd)/||" | \
+            pnpm exec nx run core:generate
+            pnpm exec nx test core -- --listTests | grep packages/ | sed "s|$(pwd)/||" | \
             circleci tests run \
-              --command="xargs npm run test:core -- --ci --files" \
+              --command="xargs pnpm run test:core -- --ci --files" \
               --verbose \
               --split-by=timings
       - run:
@@ -101,10 +107,12 @@ jobs:
     resource_class: medium+
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - run:
           name: "Run lint"
-          command: npm run lint
+          command: pnpm run lint
 
   build:
     <<: *node_executor
@@ -115,14 +123,16 @@ jobs:
         default: false
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - run:
           name: "Build artifacts"
           command: |
             if [ << parameters.prerelease >> = true ]; then
-              npm run nx:prerelease-build
+              pnpm run nx:prerelease-build
             else
-              npm run build
+              pnpm run build
             fi
       - persist_to_workspace:
           root: .
@@ -135,7 +145,9 @@ jobs:
     resource_class: medium+
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - attach_workspace:
           at: .
       - run:
@@ -144,7 +156,7 @@ jobs:
             TESTFILES=$(circleci tests glob "packages/*/e2e/**/*.spec.ts")
             echo "$TESTFILES" | \
             circleci tests run \
-              --command="xargs npx playwright test --config=playwright.config.ts" \
+              --command="xargs pnpm exec playwright test --config=playwright.config.ts" \
               --verbose \
               --split-by=timings
       - store_test_results:
@@ -167,7 +179,9 @@ jobs:
     <<: *node_executor
     steps:
       - ci/pre-setup
-      - node/npm-install
+      - run:
+          name: "Install dependencies"
+          command: corepack enable && pnpm install --frozen-lockfile
       - run:
           name: "Configure Git user"
           command: |
@@ -180,7 +194,7 @@ jobs:
           at: .
       - run:
           name: "Create and tag new release"
-          command: npm run release:version
+          command: pnpm run release:version
       - run:
           name: "Push commits and tag to GitHub"
           command: |

@@ -104,7 +104,7 @@ function buildJestCommand(projectName, config) {
     const projectPath = `packages/${projectName}`;
     const jestConfigPath = `${projectPath}/jest.config.js`;
 
-    let command = `npx jest --config=${jestConfigPath}`;
+    let command = `pnpm exec jest --config=${jestConfigPath}`;
 
     const projectFiles = filterFilesForProject(config.files, projectName);
 

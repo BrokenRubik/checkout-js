@@ -20,25 +20,25 @@ Once you have cloned the repository and set up your environment, you can start d
 First, you have to pull in the dependencies required for the application.
 
 ```sh
-npm ci
+pnpm install --frozen-lockfile
 ```
 
 After that, you can make changes to the source code and run the following command to build it.
 
 ```sh
-npm run build
+pnpm run build
 ```
 
 If you are developing the application locally and want to build the source code in watch mode, you can run the following command:
 
 ```sh
-npm run dev
+pnpm run dev
 ```
 
 If you want to create a prerelease (i.e.: `alpha`) for testing in the integration environment, you can run the following command:
 
 ```sh
-npm run release:alpha
+pnpm run release:alpha
 ```
 
 After that, you need to push the prerelease tag to your fork so it can be referenced remotely.
@@ -48,13 +48,13 @@ After that, you need to push the prerelease tag to your fork so it can be refere
 To run E2E tests, use the following command:
 
 ```sh
-npm run e2e
+pnpm run e2e
 ```
 
 The E2E tests in this project use HAR files to stub network calls. If you need to manually update the HAR files to make minor changes to the requests, you must run the command below to regenerate the ID for each updated request. Otherwise, the stubs will not function properly.
 
 ```sh
-npm run regenerate-har
+pnpm run regenerate-har
 ```
 
 ## Custom Checkout installation
@@ -63,7 +63,7 @@ Follow [this guide](https://developer.bigcommerce.com/stencil-docs/customizing-c
 
 If you want to test your checkout implementation, you can run:
 ```sh
-npm run dev:server
+pnpm run dev:server
 ```
 
 And enter the local URL for `auto-loader-dev.js` in Checkout Settings, e.g `http://127.0.0.1:8080/auto-loader-dev.js`
