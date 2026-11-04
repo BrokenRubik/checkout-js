@@ -34,5 +34,6 @@ overrides:
   'nx>brace-expansion': ^5.0.11
   'nx>smol-toml': ^1.7.1
   # nx 22.7.12 pins follow-redirects, and http-server -> http-proxy
-  # resolves an old 1.15.x. Raise every copy to the fixed version.
-  'follow-redirects@<1.16.1': ^1.16.1
+  # resolves an old 1.15.x. Raise every copy to the fixed version
+  # (1.16.2 fixes GHSA-mrwp-f3q8-3g9p).
+  'follow-redirects@<1.16.2': ^1.16.2
