@@ -298,4 +298,23 @@ app.get('*', (req, res) => {
     });
 });
 
+// Error handler. It must stay after all routes.
+// Request errors from body-parser (invalid JSON, body too large, ...) are client
+// errors: answer with their 4xx status and log one line without the stack trace.
+// Without this handler, Express logs the full stack for every bad request.
+// Other errors go to the Express default handler, as before.
+app.use((err, req, res, next) => {
+    const status = err.status || err.statusCode;
+
+    if (res.headersSent || !(status >= 400 && status < 500)) {
+        return next(err);
+    }
+
+    console.warn(`Rejected request ${req.method} ${req.path}: ${status} ${err.type || err.message}`);
+
+    return res.status(status).json({
+        error: err.type === 'entity.parse.failed' ? 'Invalid JSON' : 'Bad request',
+    });
+});
+
 module.exports = app;
