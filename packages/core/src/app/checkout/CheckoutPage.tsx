@@ -24,6 +24,11 @@ import React, {
 } from 'react';
 
 import { type AnalyticsContextProps, type ExtensionContextProps, withExtension } from '@bigcommerce/checkout/contexts';
+import {
+    assignTopLocation,
+    replaceTopLocation,
+    setTopLocationHref,
+} from '@bigcommerce/checkout/dom-utils';
 import { type ErrorLogger } from '@bigcommerce/checkout/error-handling-utils';
 import { withLanguage, type WithLanguageProps } from '@bigcommerce/checkout/locale';
 import { OrderConfirmationPageSkeleton } from '@bigcommerce/checkout/ui';
@@ -229,7 +234,7 @@ const Checkout = ({
     const setCustomerViewType = useCallback((customerViewType: CustomerViewType): void => {
         if (customerViewType === CustomerViewType.CreateAccount && isEmbedded()) {
             if (window.top) {
-                window.top.location.replace(createAccountUrl);
+                replaceTopLocation(createAccountUrl);
             }
 
             return;
@@ -316,7 +321,7 @@ const Checkout = ({
 
     const handleSignOut = useCallback(({ isCartEmpty }: CustomerSignOutEvent): void => {
         if (isPriceHiddenFromGuests && window.top) {
-            window.top.location.href = cartUrl;
+            setTopLocationHref(cartUrl);
 
             return;
         }
@@ -333,7 +338,7 @@ const Checkout = ({
             setState(prevState => ({ ...prevState, isCartEmpty: true }));
 
             if (!isEmbedded() && window.top) {
-                window.top.location.assign(loginUrl);
+                assignTopLocation(loginUrl);
 
                 return;
             }

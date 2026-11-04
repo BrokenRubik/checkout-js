@@ -182,6 +182,9 @@ describe('CheckoutStep', () => {
 
         render(<CheckoutStep {...defaultProps} />);
 
+        // `focusStep` scrolls inside a `setTimeout`, so run the timers before the check.
+        jest.runAllTimers();
+
         expect(window.scrollTo).not.toHaveBeenCalled();
     });
 

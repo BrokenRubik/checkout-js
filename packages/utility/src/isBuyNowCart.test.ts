@@ -7,6 +7,10 @@ describe('isBuyNowCart', () => {
         window.history.replaceState({}, '', `/${pathname}${search}`);
     };
 
+    beforeEach(() => {
+        redefineWindowLocation('store-url/checkout');
+    });
+
     it('returns true when the last path name is not "checkout" or "embedded-checkout"', () => {
         redefineWindowLocation('store-url/checkout/xxxxx-xxxxx-xxxxx');
 

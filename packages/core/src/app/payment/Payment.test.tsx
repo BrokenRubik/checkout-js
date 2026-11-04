@@ -19,6 +19,7 @@ import {
     LocaleProvider,
     ThemeProvider,
 } from '@bigcommerce/checkout/contexts';
+import { replaceLocation } from '@bigcommerce/checkout/dom-utils';
 import { getLanguageService } from '@bigcommerce/checkout/locale';
 import {
     CHECKOUT_ROOT_NODE_ID,
@@ -38,6 +39,11 @@ import {
     createEmbeddedCheckoutStylesheet,
     createEmbeddedCheckoutSupport,
 } from '../embeddedCheckout';
+
+jest.mock('@bigcommerce/checkout/dom-utils', () => ({
+    ...jest.requireActual('@bigcommerce/checkout/dom-utils'),
+    replaceLocation: jest.fn(),
+}));
 
 describe('Payment step', () => {
     let checkout: CheckoutPageNodeObject;
@@ -63,6 +69,8 @@ describe('Payment step', () => {
 
     beforeEach(() => {
         window.scrollTo = jest.fn();
+
+        (replaceLocation as jest.Mock).mockClear();
 
         checkoutService = createCheckoutService();
         extensionService = new ExtensionService(checkoutService, createErrorLogger());
@@ -135,17 +143,6 @@ describe('Payment step', () => {
                 ctx.json(orderResponse),
             )));
 
-        const location = window.location;
-
-        Object.defineProperty(window, 'location', {
-            value: {
-                // eslint-disable-next-line @typescript-eslint/no-misused-spread
-                ...location,
-                replace: jest.fn(),
-            },
-            writable: true,
-        });
-
         checkoutService = checkout.use(CheckoutPreset.CheckoutWithShippingAndBilling);
 
         render(<CheckoutTest {...defaultProps} />);
@@ -160,7 +157,7 @@ describe('Payment step', () => {
 
         await act(async () => userEvent.click(screen.getByText('Place Order')));
 
-        expect(window.location.replace).toHaveBeenCalledWith('/order-confirmation');
+        expect(replaceLocation).toHaveBeenCalledWith('/order-confirmation');
     });
 
     it('goes back to billing step after unmounting the component', async () => {
