@@ -18,9 +18,12 @@ allowBuilds:
   nx: false
   unrs-resolver: false
 
-# Keep pnpm-lock.yaml a single YAML document (Nx 19 and some scanners only
-# read one). Corepack still pins pnpm through package.json "packageManager".
-pmOnFail: ignore
+# pnpm version pin: package.json "packageManager" has the pnpm version and
+# its sha512 hash. Corepack refuses a pnpm download that does not match, and
+# pnpm itself fails when the running version does not match the pin. pnpm
+# records the pinned pnpm packages and their hashes in pnpm-lock.yaml, as a
+# second YAML document. Nx 22 reads both documents. Do not set
+# "pmOnFail: ignore": it turns off the check and the record.
 
 # Security fixes for transitive packages that their parents pin to a
 # vulnerable major line.
@@ -33,7 +36,9 @@ overrides:
   'nx>axios': ^1.20.0
   'nx>brace-expansion': ^5.0.11
   'nx>smol-toml': ^1.7.1
-  # nx 22.7.12 pins follow-redirects, and http-server -> http-proxy
-  # resolves an old 1.15.x. Raise every copy to the fixed version
-  # (1.16.2 fixes GHSA-mrwp-f3q8-3g9p).
+  # GHSA-mrwp-f3q8-3g9p (1.16.0 - 1.16.1, used by axios, and pinned by
+  # nx 22.7.12), and http-server -> http-proxy resolves an old 1.15.x.
   'follow-redirects@<1.16.2': ^1.16.2
+  # qs DoS advisories (fixed in 6.16.1). express 4.22.3 already uses
+  # ~6.16.0; @pollyjs/utils and union (http-server) ask for ^6.x.
+  'qs@<6.16.1': ^6.16.1
