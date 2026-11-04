@@ -1,0 +1,17 @@
+# Keep .git: the build reads the git history to compute the app version.
+
+# Local secrets. Dokploy gives the environment variables at runtime.
+.env
+.env.*
+!.env-example
+
+# Local installs and build output. The image installs and builds them again.
+node_modules
+dist
+build
+.nx
+coverage
+test-results
+packages/test-framework/report
+packages/test-framework/screenshots
+*.log
