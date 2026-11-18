@@ -26,6 +26,7 @@ import React, {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -59,6 +60,7 @@ import {
     PaymentMethodId,
     PaymentMethodProviderType,
 } from './paymentMethod';
+import { fetchIsTermsAllowed, isTermsPaymentMethod } from './termsAllowed';
 
 interface PaymentMethodSelectionParams {
     checkout: Checkout;
@@ -144,6 +146,7 @@ export interface PaymentProps {
 interface WithCheckoutPaymentProps {
     availableStoreCredit: number;
     cart?: Cart;
+    checkoutId: string;
     consignments?: Consignment[];
     cartUrl: string;
     defaultMethod?: PaymentMethod;
@@ -193,6 +196,8 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
     });
 
     const [isCartStockRefreshComplete, setIsCartStockRefreshComplete] = useState(false);
+    // Worlds Away custom: "Terms Allowed" (see ./termsAllowed.ts). Visible unless the backend says no.
+    const [isTermsAllowed, setIsTermsAllowed] = useState(true);
 
     const isReadyRef = useRef(state.isReady);
     const grandTotalChangeUnsubscribe = useRef<() => void>();
@@ -615,11 +620,17 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
                 checkoutServiceSubscribe,
             } = props;
 
+            // Worlds Away custom: start the "Terms Allowed" lookup now, and wait for it
+            // before the payment step is ready, so the terms option never flashes.
+            const termsAllowedPromise = fetchIsTermsAllowed(props.checkoutId);
+
             if (usableStoreCredit) {
                 await handleStoreCreditChange(true);
             }
 
             await loadPaymentMethodsOrThrow();
+
+            setIsTermsAllowed(await termsAllowedPromise);
 
             try {
                 const state = await finalizeOrderIfNeeded({
@@ -680,10 +691,23 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
         checkEmbeddedSupport(methods.map(({ id }) => id));
     }, [props.methods]);
 
-    const { selectedMethod = props.defaultMethod } = state;
+    // Worlds Away custom: hide "Payment by term" unless "Terms Allowed" permits it.
+    const visibleMethods = useMemo(
+        () =>
+            isTermsAllowed
+                ? props.methods
+                : props.methods.filter((method) => !isTermsPaymentMethod(method)),
+        [isTermsAllowed, props.methods],
+    );
+    const defaultMethod =
+        props.defaultMethod && !visibleMethods.includes(props.defaultMethod)
+            ? visibleMethods[0]
+            : props.defaultMethod;
+
+    const { selectedMethod = defaultMethod } = state;
     const uniqueSelectedMethodId =
         selectedMethod && getUniquePaymentMethodId(selectedMethod.id, selectedMethod.gateway);
-    const shouldShowPaymentForm = props.shouldShowSubmitPaymentButton || (!isEmpty(props.methods) && props.defaultMethod);
+    const shouldShowPaymentForm = props.shouldShowSubmitPaymentButton || (!isEmpty(visibleMethods) && defaultMethod);
 
     return (
         <PaymentContext.Provider value={getContextValue()}>
@@ -691,8 +715,8 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
                 {shouldShowPaymentForm &&
                     <PaymentForm
                         availableStoreCredit={props.availableStoreCredit}
-                        defaultGatewayId={props.defaultMethod?.gateway}
-                        defaultMethodId={props.defaultMethod?.id || ''}
+                        defaultGatewayId={defaultMethod?.gateway}
+                        defaultMethodId={defaultMethod?.id || ''}
                         didExceedSpamLimit={state.didExceedSpamLimit}
                         isEmbedded={props.isEmbedded}
                         isInitializingPayment={props.isInitializingPayment}
@@ -700,7 +724,7 @@ const Payment= (props: PaymentProps & WithCheckoutPaymentProps & WithLanguagePro
                         isStoreCreditApplied = {props.isStoreCreditApplied}
                         isTermsConditionsRequired={props.isTermsConditionsRequired}
                         isUsingMultiShipping={props.isUsingMultiShipping}
-                        methods={props.methods}
+                        methods={visibleMethods}
                         onMethodSelect={setSelectedMethod}
                         onStoreCreditChange={handleStoreCreditChange}
                         onSubmit={handleSubmit}
@@ -795,6 +819,7 @@ export function mapToPaymentProps({
         applyStoreCredit: checkoutService.applyStoreCredit,
         availableStoreCredit: customer.storeCredit,
         cart: getCart(),
+        checkoutId: checkout.id,
         consignments,
         cartUrl: config.links.cartLink,
         clearError: checkoutService.clearError,
