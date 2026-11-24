@@ -286,6 +286,80 @@ app.post('/api/update-order', validateCheckout, async (req, res) => {
     }
 });
 
+// "Terms Allowed" check for the "Payment by term" method.
+// The value comes from the customer account field "Terms Allowed" (Account Signup
+// field, written only by the NetSuite integration): "false" means no terms; "true"
+// or empty means terms are allowed. Guests never get terms.
+// The customer ID comes from the checkout on the BigCommerce side (validateCheckout),
+// never from the browser. Needs the "Customers: read-only" scope on BC_ACCESS_TOKEN.
+//
+// Log-only by default: every call logs what the API returns, but the response says
+// "terms allowed" unless TERMS_ALLOWED_ENFORCE=true. So the checkout behaves as before
+// until we confirm the data in the logs and turn the rule on.
+const TERMS_ALLOWED_FIELD_NAME = 'terms allowed';
+
+app.get('/api/terms-allowed', validateCheckout, async (req, res) => {
+    const enforced = process.env.TERMS_ALLOWED_ENFORCE === 'true';
+    const checkoutId = req.checkoutData?.id;
+    const customerId = req.checkoutData?.cart?.customer_id;
+
+    try {
+        let decision;
+        let logDetails;
+
+        if (!customerId) {
+            decision = false;
+            logDetails = { reason: 'guest' };
+        } else {
+            const bcStoreHash = process.env.BC_STORE_HASH;
+            const response = await axios.get(
+                `https://api.bigcommerce.com/stores/${bcStoreHash}/v3/customers`,
+                {
+                    headers: {
+                        'X-Auth-Token': process.env.BC_ACCESS_TOKEN,
+                        Accept: 'application/json',
+                    },
+                    params: { 'id:in': customerId, include: 'formfields' },
+                },
+            );
+
+            const customer = response.data?.data?.[0];
+            const formFields = customer?.form_fields || [];
+            const field = formFields.find(
+                (f) => String(f.name).trim().toLowerCase() === TERMS_ALLOWED_FIELD_NAME,
+            );
+            const value = String(field?.value ?? '').trim().toLowerCase();
+
+            decision = value !== 'false';
+            // Field names only (no other values): they confirm how the API names the field.
+            logDetails = {
+                customerFound: !!customer,
+                formFieldNames: formFields.map((f) => f.name),
+                termsAllowedRaw: field ? field.value : '(field not returned)',
+            };
+        }
+
+        console.log(
+            'Terms Allowed:',
+            JSON.stringify({ checkoutId, customerId, ...logDetails, decision, enforced }),
+        );
+
+        return res.json({ termsAllowed: enforced ? decision : true });
+    } catch (error) {
+        console.error(
+            'Error reading Terms Allowed:',
+            JSON.stringify({
+                checkoutId,
+                customerId,
+                status: error.response?.status,
+                error: error.response ? error.response.data : error.message,
+            }),
+        );
+        // Fail open: the checkout keeps today's behavior.
+        return res.json({ termsAllowed: true });
+    }
+});
+
 // Servir archivos estáticos de la carpeta dist
 app.use(express.static('dist'));
 
